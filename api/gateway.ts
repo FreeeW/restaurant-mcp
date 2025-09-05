@@ -1,0 +1,119 @@
+// Avoid framework-specific types here to keep it portable in Vercel Node runtime
+let openaiClient: any = null;
+import { spawn } from 'node:child_process';
+import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+async function getOpenAI() {
+  if (openaiClient) return openaiClient;
+  // @ts-ignore - dynamic import; types resolved at runtime in Vercel
+  const mod: any = await import('openai');
+  const OpenAI = mod.default || mod;
+  openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+  return openaiClient;
+}
+
+let mcpClient: MCPClient | null = null;
+let mcpTools: Array<{ name: string; description?: string; inputSchema?: any }> = [];
+
+async function ensureMcp() {
+  if (mcpClient) return;
+  const proc = spawn('node', ['dist/src/index.js'], {
+    stdio: ['pipe', 'pipe', 'inherit'],
+    env: process.env,
+  });
+  const transport = new StdioClientTransport({
+    stdin: proc.stdin!,
+    stdout: proc.stdout!,
+  } as any);
+  mcpClient = new MCPClient({ name: 'gateway', version: '0.1.0' });
+  await mcpClient.connect(transport);
+  const listed = await mcpClient.listTools();
+  mcpTools = (listed?.tools ?? []) as any[];
+}
+
+function toOpenAITools(tools: typeof mcpTools) {
+  return tools.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description ?? '',
+      parameters: t.inputSchema ?? { type: 'object', properties: {}, additionalProperties: true },
+    },
+  }));
+}
+
+async function runChat(owner_id: string, text: string): Promise<string> {
+  await ensureMcp();
+
+  const tools = toOpenAITools(mcpTools);
+  const system = `Você é um assistente que usa ferramentas MCP. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário. Responda em pt-BR.`;
+
+  const messages: any[] = [
+    { role: 'system', content: system },
+    { role: 'user', content: text },
+  ];
+
+  for (let iter = 0; iter < 6; iter++) {
+    const openai = await getOpenAI();
+    const resp = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages,
+      tools,
+      tool_choice: 'auto',
+      temperature: 0.2,
+    });
+
+    const msg = resp.choices[0]?.message;
+    if (!msg) return 'Erro temporário. Tente novamente.';
+
+    const toolCalls = msg.tool_calls ?? [];
+    if (!toolCalls.length) {
+      const final = msg.content?.toString().trim() || 'Ok.';
+      return final;
+    }
+
+    for (const tc of toolCalls) {
+      const name = tc.function?.name || '';
+      const argsText = tc.function?.arguments || '{}';
+      let args: any = {};
+      try { args = JSON.parse(argsText); } catch {}
+      if (owner_id && (args && typeof args === 'object')) args.owner_id ??= owner_id;
+
+      const result = await mcpClient!.callTool({ name, arguments: args });
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(result?.structuredContent ?? result ?? {}),
+      } as any);
+    }
+
+    messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls as any });
+  }
+
+  return 'Não consegui concluir a operação com ferramentas. Tente novamente.';
+}
+
+export default async function handler(req: any, res: any) {
+  try {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+
+    const expected = process.env.AI_GATEWAY_TOKEN;
+    if (expected) {
+      const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+      if (!got || got !== expected) return res.status(401).json({ error: 'unauthorized' });
+    }
+
+    const { owner_id, from, text } = (req.body || {}) as { owner_id?: string; from?: string; text?: string };
+    if (!owner_id || !text) return res.status(400).json({ error: 'missing_owner_id_or_text' });
+    if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'missing_openai_key' });
+
+    const reply = await runChat(owner_id, text);
+    return res.status(200).json({ reply });
+  } catch (e: any) {
+    console.error('gateway_error', e?.message || e);
+    return res.status(500).json({ error: 'gateway_error' });
+  }
+}
+
+

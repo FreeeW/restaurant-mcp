@@ -1,8 +1,15 @@
 {
+  "[typescript]": {
+    "editor.defaultFormatter": "denoland.vscode-deno"
+  },
   "deno.enablePaths": [
     "supabase/functions"
   ],
   "deno.lint": true,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": true,
+    "https://esm.sh": true
+  },
   "deno.unstable": [
     "bare-node-builtins",
     "byonm",
@@ -18,7 +25,5 @@
     "http",
     "net"
   ],
-  "[typescript]": {
-    "editor.defaultFormatter": "denoland.vscode-deno"
-  }
+  "typescript.validate.enable": true
 }

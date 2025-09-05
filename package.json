@@ -4,7 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "dotenv -e .env -- npx tsx src/index.ts"
   },
   "keywords": [],
   "author": "",
@@ -12,10 +14,12 @@
   "type": "commonjs",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.5",
-    "@supabase/supabase-js": "^2.57.0"
+    "@supabase/supabase-js": "^2.57.0",
+    "openai": "^4.104.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "dotenv-cli": "^10.0.0",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
   }

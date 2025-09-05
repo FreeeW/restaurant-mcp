@@ -102,7 +102,172 @@ Call get_daily_kpi with { "owner_id": "123e4567-e89b-12d3-a456-426614174000", "d
 
 **Exemplo de uso no Claude**:
 ```
-Call get_daily_kpi_on_date with { "owner_id": "123e4567-e89b-12d3-a456-426614174000", "day": "2024-01-15" }
+Call get_daily_kpi_on_date with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "day": "2024-01-15" }
+```
+
+## get_period_kpis
+
+**Descrição**: KPIs agregados em um intervalo de datas.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_period_kpis with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-01-01", "end": "2024-01-31" }
+```
+
+## get_shifts_range
+
+**Descrição**: Soma de horas por funcionário em um intervalo de datas (planejamento de escala / insights de staffing).
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_shifts_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-06-01", "end": "2024-06-30" }
+```
+
+## get_employee_pay
+
+**Descrição**: Horas/dia, taxa e totais para um funcionário em um intervalo (útil para payroll e custo individual).
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "emp_code": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "emp_code", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_employee_pay with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "emp_code": "A123", "start": "2024-06-01", "end": "2024-06-30" }
+```
+
+## get_orders_range
+
+**Descrição**: Compras de insumos (pedidos a fornecedores) em um intervalo. Útil para controle de custo, entregas e monitoramento de fornecedores.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_orders_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-07-01", "end": "2024-07-31" }
+```
+
+## get_notes_range
+
+**Descrição**: Observações (texto livre) em um intervalo de datas. Útil para contexto operacional.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_notes_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-07-01", "end": "2024-07-31" }
+```
+
+## add_event
+
+**Descrição**: Cria um novo evento/lembrete (agenda + WhatsApp reminder cron).
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string", "description": "UUID do dono" },
+    "date": { "type": "string", "description": "YYYY-MM-DD" },
+    "title": { "type": "string", "description": "Título do evento" },
+    "kind": { "type": "string", "description": "Categoria opcional (ex.: manutenção, entrega)" },
+    "time": { "type": "string", "description": "HH:MM opcional" },
+    "notes": { "type": "string", "description": "Notas adicionais" }
+  },
+  "required": ["owner_id", "date", "title"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call add_event with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "date": "2024-08-10", "title": "Manutenção da câmara fria", "kind": "manutencao", "time": "08:30", "notes": "Técnico João" }
+```
+
+## get_events_range
+
+**Descrição**: Lista eventos/lembretes do dono em um intervalo de datas.
+
+**Input Schema**:
+```json
+{
+  "type": "object",
+  "properties": {
+    "owner_id": { "type": "string" },
+    "start": { "type": "string", "description": "YYYY-MM-DD" },
+    "end": { "type": "string", "description": "YYYY-MM-DD" }
+  },
+  "required": ["owner_id", "start", "end"],
+  "additionalProperties": false
+}
+```
+
+**Exemplo de uso no Claude**:
+```
+Call get_events_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-08-01", "end": "2024-08-31" }
 ```
 
 # Padrão de resposta
