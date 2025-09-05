@@ -18,7 +18,8 @@ let mcpTools: Array<{ name: string; description?: string; inputSchema?: any }> =
 
 async function ensureMcp() {
   if (mcpClient) return;
-  const proc = spawn('node', ['dist/src/index.js'], {
+  // Spawn MCP server directly from TypeScript using tsx to avoid a separate build step
+  const proc = spawn('node', ['-r', 'tsx/register', 'src/index.ts'], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: process.env,
   });
