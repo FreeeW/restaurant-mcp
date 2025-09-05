@@ -1,8 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange } from "./db.ts";
-import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM } from "./validators.ts";
+import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange } from "./db.js";
+import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM } from "./validators.js";
 
 // ---- MCP server ----
 const server = new Server(
