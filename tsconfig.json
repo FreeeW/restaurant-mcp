@@ -9,6 +9,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
     "strict": true
   },
   "include": ["src/**/*.ts", "api/**/*.ts"],
