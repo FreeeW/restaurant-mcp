@@ -16,6 +16,7 @@ async function getOpenAI() {
 
 let mcpClient: MCPClient | null = null;
 let mcpTools: Array<{ name: string; description?: string; inputSchema?: any }> = [];
+let lastDebug: any = {};
 
 async function ensureMcp() {
   if (mcpClient) return;
@@ -64,6 +65,7 @@ async function runChat(owner_id: string, text: string): Promise<string> {
     const openai = await getOpenAI();
     const forceDaily = /\\bforce:get_daily_kpi_on_date\\b/i.test(text);
     console.log('[gateway] openai.chat.completions.create', { iter, forceDaily, toolsCount: tools.length });
+    lastDebug = { ...(lastDebug || {}), iter, forceDaily, toolsCount: tools.length, ts: Date.now() };
     const resp = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages,
@@ -79,6 +81,7 @@ async function runChat(owner_id: string, text: string): Promise<string> {
     try {
       console.log('[gateway] model response', { hasToolCalls: !!toolCalls.length, preview: String(msg.content || '').slice(0, 80) });
       if (toolCalls.length) console.log('[gateway] tool_calls:', toolCalls.map((t: any) => t.function?.name));
+      lastDebug = { ...(lastDebug || {}), hasToolCalls: !!toolCalls.length, toolCalls: toolCalls.map((t: any) => t.function?.name), preview: String(msg.content || '').slice(0, 80) };
     } catch {}
     if (!toolCalls.length) {
       const final = msg.content?.toString().trim() || 'Ok.';
@@ -96,6 +99,8 @@ async function runChat(owner_id: string, text: string): Promise<string> {
       const result = await mcpClient!.callTool({ name, arguments: args });
       try {
         console.log('[gateway] tool_result', { name, isError: !!result?.isError, hasStructured: !!result?.structuredContent });
+        const prev = Array.isArray((lastDebug || {}).results) ? lastDebug.results : [];
+        lastDebug = { ...(lastDebug || {}), results: [...prev, { name, isError: !!result?.isError, hasStructured: !!result?.structuredContent }] };
       } catch {}
       messages.push({
         role: 'tool',
