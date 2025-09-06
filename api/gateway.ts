@@ -63,7 +63,7 @@ Responda em pt-BR.`;
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages,
       tools: openaiTools,
-      tool_choice: forceDaily ? { type: 'function', function: { name: 'get_daily_kpi_on_date' } } : 'required',
+      tool_choice: forceDaily ? { type: 'function', function: { name: 'get_daily_kpi_on_date' } } : 'auto',
       temperature: 0.2,
     });
 
