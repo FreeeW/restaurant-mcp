@@ -77,6 +77,9 @@ async function runChat(owner_id: string, text: string): Promise<string> {
       return final;
     }
 
+    // Add assistant message with tool_calls BEFORE processing tools
+    messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls as any });
+
     for (const tc of toolCalls) {
       const name = tc.function?.name || '';
       const argsText = tc.function?.arguments || '{}';
@@ -121,8 +124,6 @@ async function runChat(owner_id: string, text: string): Promise<string> {
         } as any);
       }
     }
-
-    messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls as any });
   }
 
   return 'Não consegui concluir a operação com ferramentas. Tente novamente.';
