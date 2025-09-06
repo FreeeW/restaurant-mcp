@@ -70,7 +70,7 @@ async function runChat(owner_id: string, text: string): Promise<string> {
     if (!msg) return 'Erro temporário. Tente novamente.';
 
     const toolCalls = msg.tool_calls ?? [];
-    if (toolCalls.length) console.log('[gateway] tool_calls:', toolCalls.map(t => t.function?.name));
+    if (toolCalls.length) console.log('[gateway] tool_calls:', toolCalls.map((t: any) => t.function?.name));
     if (!toolCalls.length) {
       const final = msg.content?.toString().trim() || 'Ok.';
       return final;
