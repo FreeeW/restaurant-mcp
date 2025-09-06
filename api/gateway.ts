@@ -28,7 +28,12 @@ async function ensureMcp() {
     hasSbKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
   });
   console.log('[gateway] starting MCP process…');
-  const proc = spawn('node', ['dist/src/index.js'], {
+  const mcpPath = 'dist/src/index.js';
+  console.log('[gateway][mcp] checking path', { mcpPath, exists: require('fs').existsSync(mcpPath) });
+  if (!require('fs').existsSync(mcpPath)) {
+    throw new Error(`MCP server not found at ${mcpPath}. Build may have failed.`);
+  }
+  const proc = spawn('node', [mcpPath], {
     stdio: ['pipe', 'pipe', 'inherit'],
     env: process.env,
   });
