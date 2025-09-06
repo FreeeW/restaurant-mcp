@@ -16,7 +16,7 @@ const json = (b: unknown, s: number = 200)=>new Response(JSON.stringify(b), {
     }
   });
 const AI_GATEWAY_URL = Deno.env.get("AI_GATEWAY_URL");
-const AI_GATEWAY_TOKEN = Deno.env.get("AI_GATEWAY_TOKEN");
+const AI_GATEWAY_TOKEN = Deno.env.get("AI_GATEWAY_TOKEN") ?? Deno.env.get("GATEWAY_SECRET");
 serve(async (req)=>{
   if (req.method === "OPTIONS") return new Response(null, {
     headers: CORS

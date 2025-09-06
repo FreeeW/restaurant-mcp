@@ -57,11 +57,12 @@ async function runChat(owner_id: string, text: string): Promise<string> {
 
   for (let iter = 0; iter < 6; iter++) {
     const openai = await getOpenAI();
+    const forceDaily = /\\bforce:get_daily_kpi_on_date\\b/i.test(text);
     const resp = await openai.chat.completions.create({
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages,
       tools,
-      tool_choice: 'auto',
+      tool_choice: forceDaily ? { type: 'function', function: { name: 'get_daily_kpi_on_date' } } : 'required',
       temperature: 0.2,
     });
 
@@ -69,6 +70,7 @@ async function runChat(owner_id: string, text: string): Promise<string> {
     if (!msg) return 'Erro temporário. Tente novamente.';
 
     const toolCalls = msg.tool_calls ?? [];
+    if (toolCalls.length) console.log('[gateway] tool_calls:', toolCalls.map(t => t.function?.name));
     if (!toolCalls.length) {
       const final = msg.content?.toString().trim() || 'Ok.';
       return final;
@@ -99,7 +101,7 @@ export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-    const expected = process.env.AI_GATEWAY_TOKEN;
+    const expected = process.env.AI_GATEWAY_TOKEN ?? process.env.GATEWAY_SECRET;
     if (expected) {
       const got = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!got || got !== expected) return res.status(401).json({ error: 'unauthorized' });
