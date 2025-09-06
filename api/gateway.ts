@@ -43,7 +43,11 @@ async function runChat(owner_id: string, text: string): Promise<string> {
   await ensureTools();
 
   const openaiTools = toOpenAITools(tools);
-  const system = `Você é um assistente que usa ferramentas MCP. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário. Responda em pt-BR.`;
+  const system = `Você é um assistente que usa ferramentas MCP. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário. 
+
+IMPORTANTE: Se uma ferramenta retornar "no_data: true", isso significa que não há dados para aquela data/período específico. NÃO continue tentando outras datas - em vez disso, forneça uma resposta útil explicando que não há dados disponíveis para o período solicitado.
+
+Responda em pt-BR.`;
 
   const messages: any[] = [
     { role: 'system', content: system },
@@ -111,6 +115,11 @@ async function runChat(owner_id: string, text: string): Promise<string> {
           tool_call_id: tc.id,
           content: JSON.stringify(result?.structuredContent ?? result ?? {}),
         } as any);
+        
+        // If we got a valid "no data" response, encourage the AI to provide a summary
+        if (result?.structuredContent?.no_data) {
+          console.log('[gateway] detected no_data response, will encourage summary');
+        }
       } catch (err: any) {
         console.error('[gateway][callTool_error]', {
           name,
