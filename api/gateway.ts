@@ -3,6 +3,7 @@ let openaiClient: any = null;
 import { spawn, ChildProcess } from 'node:child_process';
 import { Client as MCPClient } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { existsSync } from 'node:fs';
 
 async function getOpenAI() {
   if (openaiClient) return openaiClient;
@@ -29,8 +30,8 @@ async function ensureMcp() {
   });
   console.log('[gateway] starting MCP process…');
   const mcpPath = 'dist/src/index.js';
-  console.log('[gateway][mcp] checking path', { mcpPath, exists: require('fs').existsSync(mcpPath) });
-  if (!require('fs').existsSync(mcpPath)) {
+  console.log('[gateway][mcp] checking path', { mcpPath, exists: existsSync(mcpPath) });
+  if (!existsSync(mcpPath)) {
     throw new Error(`MCP server not found at ${mcpPath}. Build may have failed.`);
   }
   const proc = spawn('node', [mcpPath], {
