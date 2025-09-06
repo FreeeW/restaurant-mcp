@@ -1,9 +1,9 @@
 // Avoid framework-specific types here to keep it portable in Vercel Node runtime
 let openaiClient: any = null;
 
-// Direct import of MCP tools (no child process)
+// Import from unified MCP server (single source of truth)
 // @ts-ignore - dynamic import; types resolved at runtime in Vercel  
-import { tools, toolHandlers } from '../dist/src/mcp-tools-direct.js';
+import { tools, toolHandlers } from '../dist/src/index.js';
 
 async function getOpenAI() {
   if (openaiClient) return openaiClient;
@@ -20,7 +20,7 @@ let lastDebug: any = {};
 
 async function ensureTools() {
   if (toolsReady) return;
-  console.log('[gateway][tools] loading directly (no spawn)', {
+  console.log('[gateway][tools] loading from unified MCP server', {
     hasSbUrl: !!process.env.SUPABASE_URL,
     hasSbKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
   });

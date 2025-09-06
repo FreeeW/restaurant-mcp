@@ -11,7 +11,7 @@ const server = new Server(
 );
 
 // ---- tools list (schemas) ----
-const tools = [
+export const tools = [
   {
     name: "get_daily_kpi",
     description: "KPIs resumidos (vendas, % food, % labour) de um dia.",
@@ -168,7 +168,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 type ToolResp = Promise<{ content: any[]; isError?: boolean; structuredContent?: any }>;
 type ToolHandler = (args: any) => ToolResp;
 
-const toolHandlers: Record<string, ToolHandler> = {
+export const toolHandlers: Record<string, ToolHandler> = {
   get_daily_kpi: async ({ owner_id, day }) => {
     try {
       validateUUID(owner_id);
@@ -178,7 +178,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getDailyKpi(owner_id, day);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${day}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${day}.` }], 
+        structuredContent: { no_data: true, day, message: `Sem dados para ${day}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const summary = summarizeDaily(day, safe);
@@ -193,7 +197,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getDailyKpiOnDate(owner_id, day);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${day}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${day}.` }], 
+        structuredContent: { no_data: true, day, message: `Sem dados para ${day}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const ns = Number(safe?.net_sales || 0).toLocaleString("pt-BR");
@@ -213,7 +221,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getPeriodKpis(owner_id, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }], 
+        structuredContent: { no_data: true, start, end, message: `Sem dados para ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const ns = Number(safe?.net_sales || 0).toLocaleString("pt-BR");
@@ -231,7 +243,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getShiftsRange(owner_id, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }], 
+        structuredContent: { no_data: true, start, end, message: `Sem dados para ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const total = Number(safe?.total_hours || 0).toLocaleString("pt-BR");
@@ -249,7 +265,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getEmployeePay(owner_id, emp_code, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${emp_code} em ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${emp_code} em ${start}..${end}.` }], 
+        structuredContent: { no_data: true, emp_code, start, end, message: `Sem dados para ${emp_code} em ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const hours = Number(safe?.total_hours || 0).toLocaleString("pt-BR");
@@ -266,7 +286,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getOrdersRange(owner_id, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }], 
+        structuredContent: { no_data: true, start, end, message: `Sem dados para ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const total = Number(safe?.total_amount || 0).toLocaleString("pt-BR");
@@ -283,7 +307,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getNotesRange(owner_id, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem notes para ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem notes para ${start}..${end}.` }], 
+        structuredContent: { no_data: true, start, end, message: `Sem notes para ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const notesCount = Array.isArray(safe?.notes) ? safe.notes.length : 0;
@@ -319,7 +347,11 @@ const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getEventsRange(owner_id, start, end);
     if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
-      return { content: [{ type: "text", text: `Sem eventos para ${start}..${end}.` }] };
+      return { 
+        content: [{ type: "text", text: `Sem eventos para ${start}..${end}.` }], 
+        structuredContent: { no_data: true, start, end, message: `Sem eventos para ${start}..${end}.` },
+        isError: false 
+      };
     }
     const safe = JSON.parse(JSON.stringify(data));
     const count = Array.isArray(safe?.events) ? safe.events.length : 0;
