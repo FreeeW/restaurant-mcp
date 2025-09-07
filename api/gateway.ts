@@ -43,7 +43,13 @@ async function runChat(owner_id: string, text: string): Promise<string> {
   await ensureTools();
 
   const openaiTools = toOpenAITools(tools);
-  const system = `Você é um assistente que usa ferramentas MCP. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário. 
+  const system = `Você é um assistente que usa ferramentas MCP para um restaurante. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário.
+
+CONTEXTO TEMPORAL CRÍTICO:
+- SEMPRE chame get_current_date PRIMEIRO antes de interpretar qualquer referência temporal
+- "hoje", "ontem", "esta semana", "mês passado", "agosto" → precisa saber o ano atual
+- Use a data atual retornada para calcular datas específicas (YYYY-MM-DD)
+- Nunca assuma o ano - sempre obtenha via get_current_date
 
 IMPORTANTE: Se uma ferramenta retornar "no_data: true", isso significa que não há dados para aquela data/período específico. NÃO continue tentando outras datas - em vez disso, forneça uma resposta útil explicando que não há dados disponíveis para o período solicitado.
 

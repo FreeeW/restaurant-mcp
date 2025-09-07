@@ -139,6 +139,21 @@ export const tools = [
       required: ["owner_id", "start", "end"],
       additionalProperties: false
     }
+  },
+  {
+    name: "get_current_date",
+    description: "Obtém a data e hora atual para contexto temporal. SEMPRE chame esta ferramenta antes de interpretar datas relativas como 'hoje', 'ontem', 'esta semana', 'mês passado', etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        timezone: { 
+          type: "string", 
+          description: "Timezone opcional (ex: America/Sao_Paulo)",
+          default: "America/Sao_Paulo"
+        }
+      },
+      additionalProperties: false
+    }
   }
 ] as const;
 
@@ -357,6 +372,49 @@ export const toolHandlers: Record<string, ToolHandler> = {
     const count = Array.isArray(safe?.events) ? safe.events.length : 0;
     const summary = `Eventos ${start} → ${end} — ${count} itens`;
     return render(safe, summary);
+  },
+  get_current_date: async ({ timezone = "America/Sao_Paulo" }) => {
+    try {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('pt-BR', {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit', 
+        day: '2-digit',
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const parts = formatter.formatToParts(now);
+      const year = parts.find(p => p.type === 'year')?.value;
+      const month = parts.find(p => p.type === 'month')?.value;
+      const day = parts.find(p => p.type === 'day')?.value;
+      const weekday = parts.find(p => p.type === 'weekday')?.value;
+      const hour = parts.find(p => p.type === 'hour')?.value;
+      const minute = parts.find(p => p.type === 'minute')?.value;
+      
+      const isoDate = `${year}-${month}-${day}`;
+      const currentData = {
+        current_date: isoDate,
+        current_year: parseInt(year!),
+        current_month: parseInt(month!), 
+        current_day: parseInt(day!),
+        weekday: weekday,
+        current_time: `${hour}:${minute}`,
+        timezone: timezone,
+        timestamp: now.toISOString()
+      };
+      
+      const summary = `Data atual: ${weekday}, ${day}/${month}/${year} às ${hour}:${minute} (${timezone})`;
+      return render(currentData, summary);
+      
+    } catch (e: any) {
+      return { 
+        content: [{ type: "text", text: e?.message || "Erro ao obter data atual" }], 
+        isError: true 
+      };
+    }
   }
 };
 

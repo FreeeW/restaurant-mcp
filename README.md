@@ -1,54 +1,168 @@
-# restaurant-mcp
+# 🍽️ Restaurant MCP - Sistema Unificado de Ferramentas para Restaurante
 
-Servidor MCP que expõe ferramentas para consultar KPIs de restaurante via Supabase.
+## 📋 Visão Geral
 
-# Visão geral
+Este projeto implementa um **servidor MCP (Model Context Protocol) unificado** que expõe ferramentas de gestão de restaurante para dois ambientes:
 
-- MCP server para restaurante: expõe ferramentas que consultam Supabase.
-- Integra com Claude Desktop via stdio.
-- Saída fixa: TEXT (summary) + TEXT (JSON) + structuredContent.
+1. **🖥️ Claude Desktop** - Para desenvolvimento e debugging interativo
+2. **🤖 AI Gateway (Vercel)** - Para produção via WhatsApp Bot
 
-# Arquitetura (resumo)
+**Filosofia**: **Uma única fonte de verdade** em `src/index.ts` que funciona em ambos os ambientes, eliminando duplicação de código e garantindo consistência.
 
-- `src/index.ts`: servidor MCP (lista e executa ferramentas).
-- `src/db.ts`: cliente Supabase e wrappers.
-- Claude: chama tools via config em `claude_desktop_config.json`.
+---
 
-# Requisitos
+## ⚠️ **IMPORTANTE: Como Funciona a Sincronização**
 
-- Node >= 18.
-- Conta Supabase (url + service role key).
-- Claude Desktop (opcional para dev).
+### 🎯 **Uma Ferramenta, Dois Ambientes**
+Quando você adiciona uma ferramenta em `src/index.ts`, ela fica disponível para:
+- ✅ **Claude Desktop** - lê diretamente de `src/index.ts` (TypeScript)
+- ✅ **Produção (AI Gateway)** - lê de `dist/src/index.js` (JavaScript compilado)
 
-# Variáveis de ambiente
+### 🔄 **Fluxo de Atualização (CRÍTICO)**
 
-| Variável | Descrição | Exemplo |
-|----------|-----------|---------|
-| `SUPABASE_URL` | URL do projeto Supabase | `https://xxx.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Chave service role (NUNCA commitar) | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
+**❌ NÃO é automático!** O arquivo compilado não se atualiza sozinho.
 
-
-# Como rodar (dev)
-
+#### 📝 **Processo Correto:**
 ```bash
-npm i
-npx tsx src/index.ts
+# 1. Edite src/index.ts (adicione/modifique ferramentas)
+# 2. SEMPRE compile após mudanças:
+npm run build
+
+# 3. Teste localmente:
+# - Claude Desktop: usa src/index.ts ✅  
+# - Produção: usará dist/src/index.js ✅
+
+# 4. Deploy:
+git add -A
+git commit -m "Nova ferramenta adicionada"
+git push origin main
+# Vercel rebuilda automaticamente
 ```
 
-Ver log de conexão no stderr: `[server] restaurant-mcp up`
+#### 🚨 **Se esquecer `npm run build`:**
+- ✅ Claude Desktop funciona (lê `.ts` diretamente)
+- ❌ Produção quebra (usa `.js` desatualizado)
 
-Teste manual via Claude Desktop ou stdin/stdout direto.
+#### ✅ **Verificação Rápida:**
+```bash
+# Confirme que sua nova ferramenta está compilada:
+grep -n "nome_da_ferramenta" dist/src/index.js
+```
 
-# Como conectar no Claude Desktop
+---
 
-Adicione no `claude_desktop_config.json`:
+## 🏗️ Arquitetura Completa
+
+### 🔄 Fluxo de Dados - WhatsApp para Resposta
+
+```mermaid
+graph TD
+    A[📱 WhatsApp] --> B[📡 Supabase Edge Function<br/>whatsapp-webhook]
+    B --> C[🌐 Vercel AI Gateway<br/>api/gateway.ts]
+    C --> D[🧠 OpenAI GPT-4o-mini]
+    D --> E[🔧 MCP Tools<br/>src/index.ts]
+    E --> F[🗄️ Supabase Database<br/>via src/db.ts]
+    F --> E
+    E --> D
+    D --> C
+    C --> B
+    B --> A
+```
+
+### 🎯 Componentes Principais
+
+#### 1. **`src/index.ts`** - 🎯 FONTE ÚNICA DE VERDADE
+- **Servidor MCP completo** com todas as ferramentas
+- **Exporta `tools` e `toolHandlers`** para uso externo
+- **Funciona com Claude Desktop** via protocolo MCP stdio
+- **Funciona com AI Gateway** via imports diretos
+
+#### 2. **`api/gateway.ts`** - 🌐 Gateway de Produção
+- **Serverless Function (Vercel)** que recebe requisições HTTP
+- **Importa ferramentas** de `../dist/src/index.js` (compilado)
+- **Orquestra OpenAI** para decidir quais ferramentas chamar
+- **Executa ferramentas diretamente** (sem child process)
+
+#### 3. **`supabase/functions/whatsapp-webhook/`** - 📡 Entrada WhatsApp
+- **Edge Function (Deno)** que recebe webhooks do WhatsApp
+- **Encaminha mensagens** para o AI Gateway
+- **Envia respostas** de volta via WhatsApp API
+
+#### 4. **`src/db.ts`** - 🗄️ Camada de Dados
+- **Wrappers Supabase** para todas as operações de banco
+- **Funções RPC** tipadas e com tratamento de erro
+- **Compartilhado** entre todas as ferramentas
+
+---
+
+## 🚀 Como Funciona na Prática
+
+### 📱 Fluxo WhatsApp (Produção)
+
+1. **Usuário envia**: `"kpi ontem"`
+2. **WhatsApp webhook** recebe e encaminha para Gateway
+3. **Gateway** chama OpenAI com ferramentas disponíveis
+4. **OpenAI** decide chamar `get_daily_kpi_on_date`
+5. **Gateway** executa ferramenta → Supabase → dados
+6. **OpenAI** formata resposta em português
+7. **Resposta** volta via WhatsApp: `"KPIs de 2025-01-05 — Vendas: R$ 12.500 • CMV: 32% • Labour: 28%"`
+
+### 🖥️ Fluxo Claude Desktop (Desenvolvimento)
+
+1. **Claude Desktop** conecta via `claude_desktop_config.json`
+2. **MCP Server** (`src/index.ts`) inicia via stdio
+3. **Claude** descobre ferramentas via `ListToolsRequest`
+4. **Você pergunta**: `"Quais foram os KPIs de ontem?"`
+5. **Claude** chama `get_daily_kpi_on_date` automaticamente
+6. **Resposta estruturada** aparece no chat
+
+---
+
+## 🛠️ Configuração e Instalação
+
+### 📋 Pré-requisitos
+
+- **Node.js** >= 18
+- **Conta Supabase** (URL + Service Role Key)
+- **Conta OpenAI** (API Key) - para produção
+- **Claude Desktop** - para desenvolvimento
+
+### 🔧 Instalação
+
+```bash
+# Clone e instale dependências
+git clone <seu-repo>
+cd restaurant-mcp
+npm install
+
+# Configure variáveis de ambiente
+cp .env.example .env
+# Edite .env com suas credenciais
+```
+
+### 🌐 Variáveis de Ambiente
+
+| Ambiente | Variável | Descrição | Exemplo |
+|----------|----------|-----------|---------|
+| **Todos** | `SUPABASE_URL` | URL do projeto Supabase | `https://xxx.supabase.co` |
+| **Todos** | `SUPABASE_SERVICE_ROLE_KEY` | Chave service role | `eyJhbGciOiJIUzI1NiIs...` |
+| **Gateway** | `OPENAI_API_KEY` | Chave da API OpenAI | `sk-proj-...` |
+| **Gateway** | `OPENAI_MODEL` | Modelo OpenAI (opcional) | `gpt-4o-mini` |
+| **Webhook** | `AI_GATEWAY_URL` | URL do Gateway Vercel | `https://seu-app.vercel.app/api/gateway` |
+| **Webhook** | `AI_GATEWAY_TOKEN` | Token de autenticação | `x-gw-secret` |
+
+---
+
+## 🖥️ Configuração Claude Desktop
+
+Adicione no `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "restaurant-mcp": {
-      "command": "npx",
-      "args": ["tsx", "/caminho/para/restaurant-mcp/src/index.ts"],
+      "command": "node",
+      "args": ["/caminho/absoluto/para/restaurant-mcp/dist/src/index.js"],
       "env": {
         "SUPABASE_URL": "https://SEU_PROJETO.supabase.co",
         "SUPABASE_SERVICE_ROLE_KEY": "SUA_SERVICE_ROLE_KEY_AQUI"
@@ -58,387 +172,369 @@ Adicione no `claude_desktop_config.json`:
 }
 ```
 
-**⚠️ Importante**: Substitua os placeholders pelas suas credenciais reais.
+**⚠️ Importante**: 
+- Use **caminho absoluto** para o arquivo compilado
+- Execute `npm run build` antes de conectar
+- Substitua as credenciais pelos valores reais
 
-# Ferramentas disponíveis
+---
 
-## get_daily_kpi
+## 🔧 Ferramentas Disponíveis
 
-**Descrição**: KPIs resumidos (vendas, % food, % labour) de um dia.
+### 📊 KPIs e Vendas
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string", "description": "UUID" },
-    "day": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "day"]
-}
-```
+#### `get_daily_kpi`
+- **Descrição**: KPIs resumidos de um dia (vendas, % food, % labour)
+- **Parâmetros**: `owner_id` (UUID), `day` (YYYY-MM-DD)
+- **Uso**: Visão geral rápida do dia
 
-**Exemplo de uso no Claude**:
-```
-Call get_daily_kpi with { "owner_id": "123e4567-e89b-12d3-a456-426614174000", "day": "2024-01-15" }
-```
+#### `get_daily_kpi_on_date`  
+- **Descrição**: KPIs detalhados com custos absolutos
+- **Parâmetros**: `owner_id` (UUID), `day` (YYYY-MM-DD)
+- **Uso**: Análise detalhada de custos
 
-## get_daily_kpi_on_date
+#### `get_period_kpis`
+- **Descrição**: KPIs agregados de um período
+- **Parâmetros**: `owner_id` (UUID), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Análise mensal/semanal
 
-**Descrição**: KPIs detalhados (inclui `food_cost` e `labour_cost`) para um dia.
+### 👥 Gestão de Pessoal
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string", "description": "UUID" },
-    "day": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "day"],
-  "additionalProperties": false
-}
-```
+#### `get_shifts_range`
+- **Descrição**: Horas trabalhadas por funcionário em um período
+- **Parâmetros**: `owner_id` (UUID), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Planejamento de escala
 
-**Exemplo de uso no Claude**:
-```
-Call get_daily_kpi_on_date with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "day": "2024-01-15" }
-```
+#### `get_employee_pay`
+- **Descrição**: Detalhes de pagamento de um funcionário específico
+- **Parâmetros**: `owner_id` (UUID), `emp_code` (string), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Cálculo de folha de pagamento
 
-## get_period_kpis
+### 📦 Operações e Compras
 
-**Descrição**: KPIs agregados em um intervalo de datas.
+#### `get_orders_range`
+- **Descrição**: Pedidos a fornecedores em um período
+- **Parâmetros**: `owner_id` (UUID), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Controle de estoque e custos
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "start", "end"],
-  "additionalProperties": false
-}
-```
+#### `get_notes_range`
+- **Descrição**: Observações operacionais em um período
+- **Parâmetros**: `owner_id` (UUID), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Contexto operacional e insights
 
-**Exemplo de uso no Claude**:
-```
-Call get_period_kpis with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-01-01", "end": "2024-01-31" }
-```
+### 📅 Eventos e Lembretes
 
-## get_shifts_range
+#### `add_event`
+- **Descrição**: Cria evento/lembrete para o dono
+- **Parâmetros**: `owner_id` (UUID), `date` (YYYY-MM-DD), `title` (string), `kind` (opcional), `time` (HH:MM, opcional), `notes` (opcional)
+- **Uso**: Agendar manutenções, entregas, etc.
 
-**Descrição**: Soma de horas por funcionário em um intervalo de datas (planejamento de escala / insights de staffing).
+#### `get_events_range`
+- **Descrição**: Lista eventos em um período
+- **Parâmetros**: `owner_id` (UUID), `start` (YYYY-MM-DD), `end` (YYYY-MM-DD)
+- **Uso**: Visualizar agenda
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "start", "end"],
-  "additionalProperties": false
-}
-```
+---
 
-**Exemplo de uso no Claude**:
-```
-Call get_shifts_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-06-01", "end": "2024-06-30" }
-```
+## 🧠 Sistema de IA e Prompts
 
-## get_employee_pay
+### 🎯 System Prompt (Gateway)
 
-**Descrição**: Horas/dia, taxa e totais para um funcionário em um intervalo (útil para payroll e custo individual).
+O AI Gateway usa este system prompt para instruir o modelo:
 
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "emp_code": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "emp_code", "start", "end"],
-  "additionalProperties": false
-}
-```
-
-**Exemplo de uso no Claude**:
-```
-Call get_employee_pay with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "emp_code": "A123", "start": "2024-06-01", "end": "2024-06-30" }
-```
-
-## get_orders_range
-
-**Descrição**: Compras de insumos (pedidos a fornecedores) em um intervalo. Útil para controle de custo, entregas e monitoramento de fornecedores.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "start", "end"],
-  "additionalProperties": false
-}
-```
-
-**Exemplo de uso no Claude**:
-```
-Call get_orders_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-07-01", "end": "2024-07-31" }
-```
-
-## get_notes_range
-
-**Descrição**: Observações (texto livre) em um intervalo de datas. Útil para contexto operacional.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "start", "end"],
-  "additionalProperties": false
-}
-```
-
-**Exemplo de uso no Claude**:
-```
-Call get_notes_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-07-01", "end": "2024-07-31" }
-```
-
-## add_event
-
-**Descrição**: Cria um novo evento/lembrete (agenda + WhatsApp reminder cron).
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string", "description": "UUID do dono" },
-    "date": { "type": "string", "description": "YYYY-MM-DD" },
-    "title": { "type": "string", "description": "Título do evento" },
-    "kind": { "type": "string", "description": "Categoria opcional (ex.: manutenção, entrega)" },
-    "time": { "type": "string", "description": "HH:MM opcional" },
-    "notes": { "type": "string", "description": "Notas adicionais" }
-  },
-  "required": ["owner_id", "date", "title"],
-  "additionalProperties": false
-}
-```
-
-**Exemplo de uso no Claude**:
-```
-Call add_event with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "date": "2024-08-10", "title": "Manutenção da câmara fria", "kind": "manutencao", "time": "08:30", "notes": "Técnico João" }
-```
-
-## get_events_range
-
-**Descrição**: Lista eventos/lembretes do dono em um intervalo de datas.
-
-**Input Schema**:
-```json
-{
-  "type": "object",
-  "properties": {
-    "owner_id": { "type": "string" },
-    "start": { "type": "string", "description": "YYYY-MM-DD" },
-    "end": { "type": "string", "description": "YYYY-MM-DD" }
-  },
-  "required": ["owner_id", "start", "end"],
-  "additionalProperties": false
-}
-```
-
-**Exemplo de uso no Claude**:
-```
-Call get_events_range with { "owner_id": "ecb8571b-fb2c-4ff6-8799-25fe038b9aa1", "start": "2024-08-01", "end": "2024-08-31" }
-```
-
-# Padrão de resposta
-
-- Sempre retorna três coisas:
-  - TEXT humano curto (summary)
-  - TEXT contendo JSON serializado (para agentes/parse)
-  - `structuredContent` com o mesmo objeto (para UIs que suportam)
-
-**Exemplo de saída (desktop)**:
-```
-KPIs de 2024-01-15 — Vendas: R$ 12.500 • CMV: 32% • Labour: 28%
-```
-
-**Exemplo (json)**:
-```json
-{
-  "content": [
-    { "type": "text", "text": "{\"day\":\"2024-01-15\",\"net_sales\":12500,\"food_pct\":0.32,\"labour_pct\":0.28}" }
-  ],
-  "structuredContent": {
-    "day": "2024-01-15",
-    "net_sales": 12500,
-    "food_pct": 0.32,
-    "labour_pct": 0.28
-  },
-  "isError": false
-}
-```
-
-## Validação de inputs
-
-- Os handlers usam validadores em `src/validators.ts`:
-  - `validateUUID(owner_id)` (UUID v4)
-  - `isYMD(day)` (YYYY-MM-DD)
-  - Outros auxiliares disponíveis: `assertDateRange`, `assertEmpCode`, `assertTemplate`.
-  - Em erro de validação, a tool retorna `{ isError: true, content: [ { type: "text", text: "..." } ] }`.
-
-# Supabase
-
-Configure as variáveis `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no ambiente.
-
-**⚠️ Segurança**: Chaves não devem ir para o repositório.
-
-**RPC esperada**: A função `get_daily_kpi(p_owner, p_day)` deve existir no Supabase e retornar:
-```json
-{
-  "day": "2024-01-15",
-  "net_sales": 12500.00,
-  "food_pct": 0.32,
-  "labour_pct": 0.28
-}
-```
-
-# Debug / Logs
-
-**Logs do Claude (macOS)**:
-```bash
-tail -f "$HOME/Library/Logs/Claude/mcp-server-restaurant-mcp.log"
-```
-
-**Logs do processo local**: stderr no terminal onde rodou `npx tsx src/index.ts`.
-
-# Adicionando uma nova tool (passo a passo)
-
-1. **Criar wrapper em `src/db.ts`**:
 ```typescript
-export async function getPeriodKpis(ownerId: string, startDate: string, endDate: string) {
-  const { data, error } = await sb.rpc("get_period_kpis", { 
+const system = `Você é um assistente que usa ferramentas MCP. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário. 
+
+IMPORTANTE: Se uma ferramenta retornar "no_data: true", isso significa que não há dados para aquela data/período específico. NÃO continue tentando outras datas - em vez disso, forneça uma resposta útil explicando que não há dados disponíveis para o período solicitado.
+
+Responda em pt-BR.`;
+```
+
+### 🔄 Controle de Ferramentas
+
+- **`tool_choice: 'auto'`** - Permite que a IA decida quando chamar ferramentas vs. responder
+- **Detecção de "no_data"** - Para evitar loops infinitos quando não há dados
+- **Limite de 6 iterações** - Previne loops infinitos
+
+---
+
+## 🔍 Padrão de Resposta das Ferramentas
+
+Todas as ferramentas seguem um padrão consistente:
+
+### ✅ Resposta com Dados
+```typescript
+{
+  content: [
+    { type: "text", text: "KPIs de 2025-01-05 — Vendas: R$ 12.500 • CMV: 32% • Labour: 28%" },
+    { type: "text", text: '{"day":"2025-01-05","net_sales":12500,"food_pct":0.32,"labour_pct":0.28}' }
+  ],
+  structuredContent: {
+    day: "2025-01-05",
+    net_sales: 12500,
+    food_pct: 0.32,
+    labour_pct: 0.28
+  },
+  isError: false
+}
+```
+
+### ❌ Resposta Sem Dados
+```typescript
+{
+  content: [
+    { type: "text", text: "Sem dados para 2025-01-05." }
+  ],
+  structuredContent: { 
+    no_data: true, 
+    day: "2025-01-05", 
+    message: "Sem dados para 2025-01-05." 
+  },
+  isError: false
+}
+```
+
+### 🚨 Resposta com Erro
+```typescript
+{
+  content: [
+    { type: "text", text: "invalid day (YYYY-MM-DD)" }
+  ],
+  isError: true
+}
+```
+
+---
+
+## ➕ Como Adicionar Novas Ferramentas
+
+### 1. 🗄️ Criar Wrapper no Banco (`src/db.ts`)
+
+```typescript
+export async function getNewFeature(ownerId: string, param: string) {
+  const { data, error } = await sb.rpc("get_new_feature", { 
     p_owner: ownerId, 
-    p_start: startDate, 
-    p_end: endDate 
+    p_param: param 
   });
   if (error) throw new Error(error.message);
   return data;
 }
 ```
 
-2. **Registrar schema no array `tools`**:
+### 2. 📝 Adicionar Schema de Ferramenta (`src/index.ts`)
+
+No array `tools`:
+
 ```typescript
 {
-  name: "get_period_kpis",
-  description: "KPIs de um período (múltiplos dias)",
+  name: "get_new_feature",
+  description: "Descrição clara da nova funcionalidade",
   inputSchema: {
     type: "object",
     properties: {
-      owner_id: { type: "string", description: "UUID" },
-      start_date: { type: "string", description: "YYYY-MM-DD" },
-      end_date: { type: "string", description: "YYYY-MM-DD" }
+      owner_id: { type: "string", description: "UUID do dono" },
+      param: { type: "string", description: "Parâmetro específico" }
     },
-    required: ["owner_id", "start_date", "end_date"]
+    required: ["owner_id", "param"],
+    additionalProperties: false
   }
 }
 ```
 
-3. **Tratar na handler `CallToolRequestSchema`** (padrão recomendado: registry de handlers):
+### 3. 🔧 Implementar Handler (`src/index.ts`)
+
+No objeto `toolHandlers`:
+
 ```typescript
-type ToolResp = Promise<{ content: any[]; isError?: boolean; structuredContent?: any }>;
-type ToolHandler = (args: any) => ToolResp;
-
-const toolHandlers: Record<string, ToolHandler> = {
-  get_period_kpis: async ({ owner_id, start_date, end_date }) => {
-    if (typeof owner_id !== "string" || typeof start_date !== "string" || typeof end_date !== "string") {
-      return { content: [{ type: "text", text: "Invalid arguments" }], isError: true };
-    }
-    const data = await getPeriodKpis(owner_id, start_date, end_date);
-    if (!data || (typeof data === "object" && !Object.keys(data).length)) {
-      return { content: [{ type: "text", text: `Sem dados para ${start_date}..${end_date}.` }], isError: false };
-    }
-    const safe = JSON.parse(JSON.stringify(data));
-    const summary = `Período ${start_date} a ${end_date}: ${Array.isArray(safe) ? safe.length : 1} registros`;
-    return render(safe, summary); // render já cuida de TEXT vs structuredContent
-  }
-};
-
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
+get_new_feature: async ({ owner_id, param }) => {
   try {
-    const { name, arguments: args } = req.params as any;
-    const handler = toolHandlers[name];
-    if (!handler) return { content: [{ type: "text", text: `Unknown tool ${name}` }], isError: true };
-    return await handler(args);
+    validateUUID(owner_id);
+    if (!param || typeof param !== 'string') throw new Error("invalid param");
   } catch (e: any) {
-    return { content: [{ type: "text", text: e?.message || "tool error" }], isError: true };
+    return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
   }
-});
-```
-
-4. **Testar no Claude e no terminal**.
-
-# Segurança
-
-- Não commitar keys reais no código.
-- Preferir variáveis de ambiente no config do Claude Desktop ou no shell local.
-- Use service role key apenas para operações server-side seguras.
-
-# Roadmap curto
-
-- Adicionar mais RPCs (events, shifts, orders, notes).
-- Testes automatizados de tools.
-- Integração com orquestrador de produção (LLM via API) usando `MCP_OUTPUT=json`.
-- Validação mais robusta de inputs.
-- Rate limiting e cache para queries frequentes.
-
-# Por que o formato funciona no Claude Desktop
-
-- O MCP atual do Claude não define `content` com `{ type: "json" }`.
-- Para compatibilidade, retornamos SEMPRE:
-  - `structuredContent`: objeto JSON estruturado (Claude lê diretamente quando disponível);
-  - e um bloco `content` com `type: "text"` contendo o JSON serializado (fallback/legibilidade);
-  - além de um resumo humano curto (primeiro bloco de `text`).
-- A função `render()` em `src/index.ts` implementa esse contrato fixo:
-```typescript
-function render(safe: any, summary: string) {
-  const jsonText = JSON.stringify(safe);
+  
+  const data = await getNewFeature(owner_id, param);
+  if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
   return {
-    content: [
-      { type: "text", text: summary },
-      { type: "text", text: jsonText }
-    ],
-    structuredContent: safe,
+      content: [{ type: "text", text: `Sem dados para ${param}.` }], 
+      structuredContent: { no_data: true, param, message: `Sem dados para ${param}.` },
     isError: false
-  } as any;
+    };
+  }
+  
+  const safe = JSON.parse(JSON.stringify(data));
+  const summary = `Nova funcionalidade para ${param}: ${safe.count} itens`;
+  return render(safe, summary);
 }
 ```
 
-# Padrão para manter compatível ao adicionar novas tools
+### 4. 🧪 Testar
 
-- Sempre registrar o schema em `tools` (descoberta pelo Claude).
-- Implementar o handler no registry e usar `render(safe, summary)` para padronizar saída.
-- Se a tool acessar Supabase, criar um wrapper em `src/db.ts` que:
-  - chama `sb.rpc(...)`, faz `throw` em erro e retorna `data`;
-  - não formata texto nem cuida de UX.
-- Validar inputs no handler, serializar dados via `safe = JSON.parse(JSON.stringify(data))` e chamar `render()`.
-- Testar com `MCP_OUTPUT=desktop|json|both` para garantir compatibilidade com Claude Desktop.
+```bash
+# Compilar
+npm run build
+
+# Testar no Claude Desktop
+# (reinicie o Claude Desktop para recarregar)
+
+# Testar no Gateway
+curl -X POST "https://seu-app.vercel.app/api/gateway" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer x-gw-secret" \
+  -d '{"owner_id":"uuid","from":"+5511999999999","text":"teste nova funcionalidade"}'
+```
+
+---
+
+## 🚀 Deploy e Produção
+
+### 📦 Build
+
+```bash
+npm run build
+# Gera dist/ com arquivos compilados
+```
+
+### 🌐 Deploy Vercel
+
+1. **Configure variáveis de ambiente** no Vercel Dashboard
+2. **Push para GitHub** - deploy automático
+3. **Configure webhook** no Supabase com URL do Gateway
+
+### 🔧 Deploy Supabase Edge Functions
+
+```bash
+# Na pasta do projeto
+supabase functions deploy whatsapp-webhook
+supabase secrets set AI_GATEWAY_URL=https://seu-app.vercel.app/api/gateway
+supabase secrets set AI_GATEWAY_TOKEN=x-gw-secret
+```
+
+---
+
+## 🐛 Debug e Troubleshooting
+
+### 📊 Logs Claude Desktop (macOS)
+```bash
+tail -f "$HOME/Library/Logs/Claude/mcp-server-restaurant-mcp.log"
+```
+
+### 📊 Logs Vercel
+- Acesse Vercel Dashboard → Functions → View Logs
+- Ou use `vercel logs` CLI
+
+### 📊 Logs Supabase
+- Acesse Supabase Dashboard → Edge Functions → Logs
+
+### 🔍 Testes Manuais
+
+```bash
+# Teste direto do Gateway
+curl -X POST "https://seu-app.vercel.app/api/gateway" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer x-gw-secret" \
+  -d '{"owner_id":"uuid","from":"+5511999999999","text":"kpi hoje"}'
+
+# Health check
+curl "https://seu-app.vercel.app/api/ping"
+```
+
+### ⚠️ Problemas Comuns
+
+1. **Loop infinito de ferramentas**
+   - **Causa**: `tool_choice: 'required'` força sempre chamar ferramentas
+   - **Solução**: Use `tool_choice: 'auto'`
+
+2. **"Not connected" errors**
+   - **Causa**: Child process não funciona no Vercel
+   - **Solução**: Use imports diretos (já implementado)
+
+3. **Module not found**
+   - **Causa**: Paths de import incorretos ou build não executado
+   - **Solução**: Execute `npm run build` e verifique imports
+
+---
+
+## 🔐 Segurança
+
+### 🔑 Chaves e Credenciais
+- **Nunca** commite chaves no código
+- Use **variáveis de ambiente** em todos os ambientes
+- **Service Role Key** apenas para operações server-side seguras
+
+### 🛡️ Autenticação
+- **Gateway** protegido por token Bearer
+- **WhatsApp** validado por owner_id mapping
+- **Supabase** com Row Level Security (RLS)
+
+### 🚨 Rate Limiting
+- **OpenAI** tem rate limits nativos
+- **Supabase** tem limites por plano
+- Considere implementar cache para queries frequentes
+
+---
+
+## 🎯 Casos de Uso Práticos
+
+### 📱 Via WhatsApp
+- `"kpi ontem"` → KPIs do dia anterior
+- `"vendas da semana"` → KPIs da semana atual
+- `"horas do João em janeiro"` → Relatório de funcionário
+- `"criar lembrete manutenção geladeira amanhã 14h"` → Adiciona evento
+
+### 🖥️ Via Claude Desktop
+- Análises complexas com múltiplas ferramentas
+- Debugging de dados específicos
+- Desenvolvimento de novas consultas
+- Validação de lógica de negócio
+
+---
+
+## 🛣️ Roadmap
+
+### 🎯 Curto Prazo
+- [ ] Mais validações de entrada
+- [ ] Cache de queries frequentes
+- [ ] Métricas e monitoring
+- [ ] Testes automatizados
+
+### 🚀 Médio Prazo
+- [ ] Dashboard web para visualização
+- [ ] Integração com mais canais (Telegram, Slack)
+- [ ] Relatórios automatizados
+- [ ] Alertas proativos
+
+### 🌟 Longo Prazo
+- [ ] Machine Learning para insights preditivos
+- [ ] Integração com ERPs
+- [ ] API pública para terceiros
+- [ ] Multi-tenant para múltiplos restaurantes
+
+---
+
+## 🤝 Contribuindo
+
+1. **Fork** o repositório
+2. **Crie branch** para sua feature: `git checkout -b feature/nova-funcionalidade`
+3. **Commit** suas mudanças: `git commit -m 'Adiciona nova funcionalidade'`
+4. **Push** para a branch: `git push origin feature/nova-funcionalidade`
+5. **Abra Pull Request**
+
+---
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para detalhes.
+
+---
+
+## 🆘 Suporte
+
+- **Issues**: Use GitHub Issues para bugs e feature requests
+- **Documentação**: Este README é a fonte principal
+- **Debug**: Siga as seções de troubleshooting acima
+
+---
+
+**🎉 Agora você tem um sistema completo de MCP unificado funcionando tanto no Claude Desktop quanto em produção via WhatsApp!**

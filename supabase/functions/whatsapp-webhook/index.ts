@@ -93,7 +93,7 @@ serve(async (req)=>{
             body: JSON.stringify({ owner_id, from: it.from, text: it.text })
           });
           const json = await resp.json().catch(() => ({}));
-          reply = String(json?.reply || 'Ok.');
+          reply = String(json?.reply || 'tendi nada');
         } catch (_e) {
           reply = 'Erro temporário ao acessar o gateway.';
         }
