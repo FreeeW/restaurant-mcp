@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory } from "./db.js";
-import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164 } from "./validators.js";
+import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164, assertPhoneDigits } from "./validators.js";
 
 // ---- MCP server ----
 const server = new Server(
@@ -19,7 +19,7 @@ export const tools = [
       type: "object",
       properties: {
         owner_id: { type: "string", description: "UUID do proprietário" },
-        from_e164: { type: "string", description: "Telefone em formato E.164 (ex: +5511999999999)" },
+        from_e164: { type: "string", description: "Telefone sem + (ex: 5511999999999)" },
         limit: { type: "number", description: "Limite de mensagens (padrão: 10)" }
       },
       required: ["owner_id", "from_e164"],
@@ -206,7 +206,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
   get_conversation_history: async ({ owner_id, from_e164, limit = 10 }) => {
     try {
       validateUUID(owner_id);
-      assertE164(from_e164);
+      assertPhoneDigits(from_e164);
       const n = Number(limit);
       if (!Number.isFinite(n) || n <= 0 || n > 100) throw new Error("invalid limit (1..100)");
     } catch (e: any) {

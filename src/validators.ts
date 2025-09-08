@@ -1,6 +1,6 @@
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
-export const E164_RE = /^\+[1-9]\d{1,14}$/; // E.164 max 15 digits including country code
+export const E164_RE = /^[1-9]\d{9,14}$/; // digits-only international, 10-15 digits
 
 export function validateUUID(v: string) {
   if (!v || !UUID_RE.test(v)) throw new Error("invalid owner_id");
@@ -27,10 +27,15 @@ export function assertHHMM(t?: string | null) {
   if (!re.test(t)) throw new Error("invalid time (HH:MM)");
 }
 
-export function assertE164(phone: string) {
+export function assertPhoneDigits(phone: string): void {
   const p = (phone ?? "").trim();
-  if (!E164_RE.test(p)) throw new Error("invalid from_e164 (E.164 format required)");
+  if (!E164_RE.test(p)) {
+    throw new Error("invalid phone (digits-only, 10-15 digits, no +)");
+  }
 }
+
+// Backward-compat alias
+export const assertE164 = assertPhoneDigits;
 
 export const ALLOWED_TEMPLATES = new Set([
   "kpi_daily_range",

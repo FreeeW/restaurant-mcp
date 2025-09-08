@@ -45,7 +45,7 @@ async function runChat(owner_id: string, text: string, from_e164?: string): Prom
   const openaiTools = toOpenAITools(tools);
   const system = `Você é um assistente que usa ferramentas MCP para um restaurante. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário.
 
-Se disponível, use também o telefone em E.164 como contexto: from_e164="${from_e164 || ''}".
+Se disponível, use também o telefone sem + como contexto: from_e164="${(from_e164 || '')}".
 
 CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversation_history quando apropriado (especialmente se o usuário fizer referência a mensagens anteriores).` + `
 
@@ -100,7 +100,7 @@ Responda em pt-BR.`;
       let args: any = {};
       try { args = JSON.parse(argsText); } catch {}
       if (owner_id && (args && typeof args === 'object')) args.owner_id ??= owner_id;
-      if (from_e164 && (args && typeof args === 'object')) args.from_e164 ??= from_e164;
+      if (from_e164 && (args && typeof args === 'object')) args.from_e164 ??= from_e164.replace(/^\+/, '');
 
       try {
         console.log('[gateway] callTool', { name, args });
