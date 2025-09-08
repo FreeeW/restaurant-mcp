@@ -39,11 +39,15 @@ function toOpenAITools(mcpTools: typeof tools) {
   }));
 }
 
-async function runChat(owner_id: string, text: string): Promise<string> {
+async function runChat(owner_id: string, text: string, from_e164?: string): Promise<string> {
   await ensureTools();
 
   const openaiTools = toOpenAITools(tools);
   const system = `Você é um assistente que usa ferramentas MCP para um restaurante. Sempre inclua "owner_id":"${owner_id}" nos argumentos das ferramentas quando necessário.
+
+Se disponível, use também o telefone em E.164 como contexto: from_e164="${from_e164 || ''}".
+
+CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversation_history quando apropriado (especialmente se o usuário fizer referência a mensagens anteriores).` + `
 
 CONTEXTO TEMPORAL CRÍTICO:
 - SEMPRE chame get_current_date PRIMEIRO antes de interpretar qualquer referência temporal
@@ -69,7 +73,7 @@ Responda em pt-BR.`;
       model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       messages,
       tools: openaiTools,
-      tool_choice: forceDaily ? { type: 'function', function: { name: 'get_daily_kpi_on_date' } } : 'auto',
+      tool_choice: forceDaily ? { type: 'function', function: { name: 'get_daily_kpi_on_date' } } : (iter === 0 && from_e164 ? { type: 'function', function: { name: 'get_conversation_history' } } : 'auto'),
       temperature: 0.2,
     });
 
@@ -96,6 +100,7 @@ Responda em pt-BR.`;
       let args: any = {};
       try { args = JSON.parse(argsText); } catch {}
       if (owner_id && (args && typeof args === 'object')) args.owner_id ??= owner_id;
+      if (from_e164 && (args && typeof args === 'object')) args.from_e164 ??= from_e164;
 
       try {
         console.log('[gateway] callTool', { name, args });
@@ -158,7 +163,7 @@ export default async function handler(req: any, res: any) {
     if (!owner_id || !text) return res.status(400).json({ error: 'missing_owner_id_or_text' });
     if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: 'missing_openai_key' });
 
-    const reply = await runChat(owner_id, text);
+    const reply = await runChat(owner_id, text, from);
     return res.status(200).json({ reply });
   } catch (e: any) {
     console.error('gateway_error', e?.message || e);

@@ -60,6 +60,32 @@ export async function getEmployeePay(ownerId: string, empCode: string, start: st
   return data; // { emp_code,start,end,days:[...],total_hours,total_pay }
 }
 
+// Verifica existência de funcionário ativo por owner_id e code
+export async function employeeExists(ownerId: string, empCode: string) {
+  const { data, error } = await sb
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("owner_id", ownerId)
+    .eq("code", empCode)
+    .eq("active", true);
+  if (error) throw new Error(error.message);
+  // When using head:true, data is null; rely on count via data length not available.
+  // Fallback: perform a minimal select single row if count isn't supported.
+  if (data == null) {
+    const { data: one, error: e2 } = await sb
+      .from("employees")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .eq("code", empCode)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+    if (e2) throw new Error(e2.message);
+    return !!one?.id;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
 // Pedidos (compras de insumos) no intervalo
 export async function getOrdersRange(ownerId: string, start: string, end: string) {
   const { data, error } = await sb.rpc("get_orders_range", {
@@ -105,5 +131,16 @@ export async function getEventsRange(ownerId: string, start: string, end: string
   });
   if (error) throw new Error(error.message);
   return data; // { start, end, events: [{id,date,time,title,kind,notes}] }
+}
+
+// Conversa: histórico recente por owner e telefone
+export async function getConversationHistory(ownerId: string, fromE164: string, limit: number = 10) {
+  const { data, error } = await sb.rpc("get_conversation_history", {
+    p_owner: ownerId,
+    p_from_e164: fromE164,
+    p_limit: limit
+  });
+  if (error) throw new Error(error.message);
+  return data; // { owner_id, from_e164, conversation_count, messages: [{direction,message,created_at}] }
 }
 

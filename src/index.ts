@@ -1,8 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange } from "./db.js";
-import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM } from "./validators.js";
+import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory } from "./db.js";
+import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164 } from "./validators.js";
 
 // ---- MCP server ----
 const server = new Server(
@@ -12,6 +12,20 @@ const server = new Server(
 
 // ---- tools list (schemas) ----
 export const tools = [
+  {
+    name: "get_conversation_history",
+    description: "Busca o histórico de conversas recentes para entender o contexto.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        from_e164: { type: "string", description: "Telefone em formato E.164 (ex: +5511999999999)" },
+        limit: { type: "number", description: "Limite de mensagens (padrão: 10)" }
+      },
+      required: ["owner_id", "from_e164"],
+      additionalProperties: false
+    }
+  },
   {
     name: "get_daily_kpi",
     description: "KPIs resumidos (vendas, % food, % labour) de um dia.",
@@ -159,9 +173,14 @@ export const tools = [
 
 // ---- helpers ----
 function summarizeDaily(day: string, safe: any) {
-  const ns = Number(safe?.net_sales || 0).toLocaleString("pt-BR");
-  const fp = safe?.food_pct == null ? "—" : `${Math.round(safe.food_pct * 100)}%`;
-  const lp = safe?.labour_pct == null ? "—" : `${Math.round(safe.labour_pct * 100)}%`;
+  const formatPct = (v?: number | null) => v == null ? "N/A" : `${(v * 100).toFixed(1)}%`;
+  if (safe?.net_sales == null) {
+    // Align text with JSON nulls
+    return `KPIs de ${day} — Vendas: Não registrado • CMV: ${formatPct(null)} • Labour: ${formatPct(null)}`;
+  }
+  const ns = Number(safe.net_sales).toLocaleString("pt-BR");
+  const fp = formatPct(safe?.food_pct);
+  const lp = formatPct(safe?.labour_pct);
   return `KPIs de ${day} — Vendas: R$ ${ns} • CMV: ${fp} • Labour: ${lp}`;
 }
 function render(safe: any, summary: string) {
@@ -184,6 +203,36 @@ type ToolResp = Promise<{ content: any[]; isError?: boolean; structuredContent?:
 type ToolHandler = (args: any) => ToolResp;
 
 export const toolHandlers: Record<string, ToolHandler> = {
+  get_conversation_history: async ({ owner_id, from_e164, limit = 10 }) => {
+    try {
+      validateUUID(owner_id);
+      assertE164(from_e164);
+      const n = Number(limit);
+      if (!Number.isFinite(n) || n <= 0 || n > 100) throw new Error("invalid limit (1..100)");
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    const data = await getConversationHistory(owner_id, from_e164, limit);
+    if (!data || !Array.isArray(data?.messages) || data.messages.length === 0) {
+      const message = `Nenhum histórico de conversa encontrado para ${from_e164}.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          owner_id,
+          from_e164,
+          message,
+          conversation_count: 0,
+          messages: []
+        },
+        isError: false
+      } as any;
+    }
+    const safe = JSON.parse(JSON.stringify(data));
+    const count = Number(safe?.conversation_count ?? safe?.messages?.length ?? 0);
+    const summary = `Histórico: ${count} mensagens com ${from_e164}`;
+    return render(safe, summary);
+  },
   get_daily_kpi: async ({ owner_id, day }) => {
     try {
       validateUUID(owner_id);
@@ -193,13 +242,44 @@ export const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getDailyKpi(owner_id, day);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { 
-        content: [{ type: "text", text: `Sem dados para ${day}.` }], 
-        structuredContent: { no_data: true, day, message: `Sem dados para ${day}.` },
-        isError: false 
+      const message = `Nenhuma venda registrada para ${day}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          day,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null
+        },
+        isError: false
       };
     }
     const safe = JSON.parse(JSON.stringify(data));
+    if (safe?.net_sales == null) {
+      const message = `Nenhuma venda registrada para ${day}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          day,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null
+        },
+        isError: false
+      };
+    }
     const summary = summarizeDaily(day, safe);
     return render(safe, summary);
   },
@@ -212,19 +292,55 @@ export const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getDailyKpiOnDate(owner_id, day);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { 
-        content: [{ type: "text", text: `Sem dados para ${day}.` }], 
-        structuredContent: { no_data: true, day, message: `Sem dados para ${day}.` },
-        isError: false 
+      const message = `Nenhuma venda registrada para ${day}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          day,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null,
+          food_cost: null,
+          labour_cost: null
+        },
+        isError: false
       };
     }
     const safe = JSON.parse(JSON.stringify(data));
-    const ns = Number(safe?.net_sales || 0).toLocaleString("pt-BR");
-    const fc = safe?.food_cost == null ? "—" : Number(safe.food_cost).toLocaleString("pt-BR");
-    const lc = safe?.labour_cost == null ? "—" : Number(safe.labour_cost).toLocaleString("pt-BR");
-    const fp = safe?.food_pct == null ? "—" : `${Math.round(safe.food_pct * 100)}%`;
-    const lp = safe?.labour_pct == null ? "—" : `${Math.round(safe.labour_pct * 100)}%`;
-    const summary = `KPIs detalhados ${day} — Vendas: R$ ${ns} • Food: R$ ${fc} (${fp}) • Labour: R$ ${lc} (${lp})`;
+    if (safe?.net_sales == null) {
+      const message = `Nenhuma venda registrada para ${day}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          day,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null,
+          food_cost: null,
+          labour_cost: null
+        },
+        isError: false
+      };
+    }
+    const pct = (v?: number | null) => v == null ? "N/A" : `${(v * 100).toFixed(1)}%`;
+    const ns = safe?.net_sales == null ? "Não registrado" : `R$ ${Number(safe.net_sales).toLocaleString("pt-BR")}`;
+    const fc = safe?.food_cost == null ? "N/A" : `R$ ${Number(safe.food_cost).toLocaleString("pt-BR")}`;
+    const lc = safe?.labour_cost == null ? "N/A" : `R$ ${Number(safe.labour_cost).toLocaleString("pt-BR")}`;
+    const fp = pct(safe?.food_pct);
+    const lp = pct(safe?.labour_pct);
+    const summary = `KPIs detalhados ${day} — Vendas: ${ns} • Food: ${fc} (${fp}) • Labour: ${lc} (${lp})`;
     return render(safe, summary);
   },
   get_period_kpis: async ({ owner_id, start, end }) => {
@@ -236,17 +352,72 @@ export const toolHandlers: Record<string, ToolHandler> = {
     }
     const data = await getPeriodKpis(owner_id, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
-      return { 
-        content: [{ type: "text", text: `Sem dados para ${start}..${end}.` }], 
-        structuredContent: { no_data: true, start, end, message: `Sem dados para ${start}..${end}.` },
-        isError: false 
+      const message = `Nenhuma venda registrada em ${start}..${end}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          start,
+          end,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null
+        },
+        isError: false
       };
     }
     const safe = JSON.parse(JSON.stringify(data));
-    const ns = Number(safe?.net_sales || 0).toLocaleString("pt-BR");
-    const fp = safe?.food_pct == null ? "—" : `${Math.round(safe.food_pct * 100)}%`;
-    const lp = safe?.labour_pct == null ? "—" : `${Math.round(safe.labour_pct * 100)}%`;
-    const summary = `KPIs ${start} → ${end} — Vendas: R$ ${ns} • CMV: ${fp} • Labour: ${lp}`;
+    if (safe?.net_sales == null) {
+      const message = `Nenhuma venda registrada em ${start}..${end}. Restaurante fechado ou dados não inseridos ainda.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          start,
+          end,
+          message,
+          suggestions: [
+            "Verifique se o restaurante estava aberto",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: null,
+          food_pct: null,
+          labour_pct: null
+        },
+        isError: false
+      };
+    }
+    if (Number(safe?.net_sales) === 0 && safe?.food_pct == null && safe?.labour_pct == null) {
+      const message = `Sem vendas registradas no período ${start}..${end}. Pode indicar dias sem operação ou dados não inseridos.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: false,
+          zero_sales: true,
+          start,
+          end,
+          message,
+          suggestions: [
+            "Verifique se o restaurante esteve aberto no período",
+            "Confirme se as vendas foram registradas no sistema"
+          ],
+          net_sales: 0,
+          food_pct: null,
+          labour_pct: null
+        },
+        isError: false
+      };
+    }
+    const pct = (v?: number | null) => v == null ? "N/A" : `${(v * 100).toFixed(1)}%`;
+    const ns = `R$ ${Number(safe.net_sales).toLocaleString("pt-BR")}`;
+    const fp = pct(safe?.food_pct);
+    const lp = pct(safe?.labour_pct);
+    const summary = `KPIs ${start} → ${end} — Vendas: ${ns} • CMV: ${fp} • Labour: ${lp}`;
     return render(safe, summary);
   },
   get_shifts_range: async ({ owner_id, start, end }) => {
@@ -278,6 +449,17 @@ export const toolHandlers: Record<string, ToolHandler> = {
     } catch (e: any) {
       return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
     }
+    // 1) Validação de existência do funcionário
+    try {
+      const exists = await employeeExists(owner_id, emp_code);
+      if (!exists) {
+        const message = `Funcionário com código '${emp_code}' não encontrado. Verifique o código ou consulte a lista de funcionários ativos.`;
+        return { content: [{ type: "text", text: message }], isError: true } as any;
+      }
+    } catch (e: any) {
+      // Caso o lookup falhe por erro de conexão/consulta
+      return { content: [{ type: "text", text: e?.message || "Erro ao verificar funcionário" }], isError: true };
+    }
     const data = await getEmployeePay(owner_id, emp_code, start, end);
     if (data == null || (typeof data === "object" && Object.keys(data).length === 0)) {
       return { 
@@ -287,8 +469,20 @@ export const toolHandlers: Record<string, ToolHandler> = {
       };
     }
     const safe = JSON.parse(JSON.stringify(data));
-    const hours = Number(safe?.total_hours || 0).toLocaleString("pt-BR");
-    const pay = Number(safe?.total_pay || 0).toLocaleString("pt-BR");
+    // 2) Diferenciar "existe mas não trabalhou" (0 horas) de outras situações
+    if (Number(safe?.total_hours) === 0) {
+      const message = `Funcionário ${emp_code} não trabalhou no período especificado.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          ...safe,
+          message
+        },
+        isError: false
+      } as any;
+    }
+    const hours = Number(safe.total_hours).toLocaleString("pt-BR");
+    const pay = Number(safe.total_pay).toLocaleString("pt-BR");
     const summary = `Emp ${safe?.emp_code || emp_code} — ${start} → ${end}: ${hours} h • R$ ${pay}`;
     return render(safe, summary);
   },
