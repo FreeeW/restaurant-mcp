@@ -8,7 +8,9 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 // util: executar select().single() e lançar erro padrão
-async function selectSingle(q: Promise<{ data: any; error: { message?: string } | null }>) {
+type SupabaseResponse<T> = { data: T; error: { message?: string } | null };
+
+async function selectSingle<T = unknown>(q: PromiseLike<SupabaseResponse<T>>): Promise<T> {
   const { data, error } = await q;
   if (error) throw new Error(error.message || String(error));
   return data;
@@ -40,7 +42,10 @@ serve(async (req)=>{
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!SUPABASE_URL || !SERVICE_ROLE) {
-      return new Response("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", { status: 500, headers: cors });
+      return new Response("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY", {
+        status: 500,
+        headers: cors
+      });
     }
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: {
@@ -118,7 +123,8 @@ serve(async (req)=>{
       }
     });
   } catch (err) {
-    return new Response(err?.message ?? String(err), {
+    const message = err instanceof Error ? err.message : String(err);
+    return new Response(message, {
       status: 500,
       headers: cors
     });
