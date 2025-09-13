@@ -107,6 +107,9 @@ Responda em pt-BR.`;
     // Add assistant message with tool_calls BEFORE processing tools
     messages.push({ role: 'assistant', content: msg.content ?? '', tool_calls: msg.tool_calls as any });
 
+    // Defer any history hint until AFTER all tool messages are pushed
+    let deferredHistoryHint: string | null = null;
+
     for (const tc of toolCalls) {
       const name = tc.function?.name || '';
       const argsText = tc.function?.arguments || '{}';
@@ -148,14 +151,13 @@ Responda em pt-BR.`;
             first_preview: `${first?.direction || ''}:${(first?.message || '').slice(0, 120)}`,
             last_preview: `${last?.direction || ''}:${(last?.message || '').slice(0, 120)}`
           });
-          // Inject a short, explicit context hint for date disambiguation based on history
+          // Build a short, explicit context hint for date disambiguation based on history (DEFERRED)
           try {
             const monthMap: Record<string, number> = {
               'janeiro': 1, 'fevereiro': 2, 'março': 3, 'marco': 3, 'abril': 4, 'maio': 5, 'junho': 6,
               'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
             };
             const rxFull = /\b(?:no\s+dia\s+)?(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?/i;
-            let foundText: string | null = null;
             let foundDay: number | null = null;
             let foundMonth: number | null = null;
             let foundYear: number | null = null;
@@ -163,21 +165,18 @@ Responda em pt-BR.`;
               const txt = String(m?.message || '');
               const mm = txt.match(rxFull);
               if (mm) {
-                foundText = mm[0];
                 foundDay = parseInt(mm[1], 10);
                 const mon = (mm[2] || '').toLowerCase();
                 foundMonth = monthMap[mon] || null;
                 foundYear = mm[3] ? parseInt(mm[3], 10) : null;
-                break; // use the most recent mention (messages are desc ordered)
+                break; // most recent
               }
             }
             if (foundDay && foundMonth) {
-              const hint = `Contexto do histórico: última data explícita mencionada: ${String(foundDay).padStart(2,'0')}/${String(foundMonth).padStart(2,'0')}${foundYear ? '/' + foundYear : ''}. Se o usuário disser "neste mesmo dia" ou "dia N" se referindo a esta conversa, interprete como esta data e não chame get_current_date.`;
-              messages.push({ role: 'system', content: hint });
-              console.log('[gateway] injected_history_hint', { hint });
+              deferredHistoryHint = `Contexto do histórico: última data explícita mencionada: ${String(foundDay).padStart(2,'0')}/${String(foundMonth).padStart(2,'0')}${foundYear ? '/' + foundYear : ''}. Se o usuário disser "neste mesmo dia" ou "dia N" se referindo a esta conversa, interprete como esta data e não chame get_current_date.`;
             }
           } catch (e) {
-            console.log('[gateway] inject_history_hint_error', { err: (e as any)?.message });
+            console.log('[gateway] build_history_hint_error', { err: (e as any)?.message });
           }
         }
         messages.push({
@@ -208,6 +207,12 @@ Responda em pt-BR.`;
           content: JSON.stringify({ error: err?.message || 'Tool execution failed' }),
         } as any);
       }
+    }
+
+    // Now that all tool_call_ids have tool responses, inject the hint if available
+    if (deferredHistoryHint) {
+      messages.push({ role: 'system', content: deferredHistoryHint });
+      console.log('[gateway] injected_history_hint', { hint: deferredHistoryHint });
     }
   }
 
