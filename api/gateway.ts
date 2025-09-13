@@ -67,8 +67,32 @@ IMPORTANTE: Se uma ferramenta retornar "no_data: true", isso significa que não 
 
 Responda em pt-BR.`;
 
+  // Prefetch recent history (compact context) when we have identifiers
+  let historyContext = '';
+  if (owner_id && from_e164) {
+    try {
+      const hist = await toolHandlers.get_conversation_history({ owner_id, from_e164: from_e164.replace(/^\+/, ''), limit: 10 });
+      const sc: any = hist?.structuredContent ?? {};
+      const msgs: any[] = Array.isArray(sc?.messages) ? sc.messages : [];
+      if (msgs.length > 0) {
+        // chronological (oldest -> newest)
+        const chron = [...msgs].reverse().slice(-10);
+        const lines = chron.map(m => {
+          const dir = m?.direction === 'in' ? 'U' : 'B';
+          const text = String(m?.message || '').replace(/\s+/g, ' ').slice(0, 120);
+          const day = (m?.created_at || '').slice(0, 10);
+          return `${day} [${dir}]: ${text}`;
+        });
+        historyContext = `Contexto recente (referência, não substitui datas/períodos):\n${lines.join('\n')}`;
+      }
+    } catch (e) {
+      console.log('[gateway] history_prefetch_error', { err: (e as any)?.message });
+    }
+  }
+
   const messages: any[] = [
     { role: 'system', content: system },
+    ...(historyContext ? [{ role: 'system', content: historyContext }] : []),
     { role: 'user', content: text },
   ];
 
