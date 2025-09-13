@@ -47,7 +47,13 @@ async function runChat(owner_id: string, text: string, from_e164?: string): Prom
 
 Se disponível, use também o telefone sem + como contexto: from_e164="${(from_e164 || '')}".
 
-CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversation_history quando apropriado (especialmente se o usuário fizer referência a mensagens anteriores).` + `
+CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversation_history quando apropriado (especialmente se o usuário fizer referência a mensagens anteriores).
+
+REGRAS PARA DATAS AMBÍGUAS:
+- Quando o usuário disser "dia N" sem mês explícito, procure no HISTÓRICO o mês mais recente citado explicitamente (ex.: "agosto", "setembro").
+- Se encontrar um mês explícito recente, use esse mês para resolver a data e CHAME a ferramenta apropriada.
+- Se NÃO houver mês explícito no histórico, PERGUNTE qual mês (não assuma o mês atual).
+- Só assuma o mês atual quando o usuário disser claramente "este mês", "agora" ou similar.
 
 CONTEXTO TEMPORAL CRÍTICO:
 - SEMPRE chame get_current_date PRIMEIRO antes de interpretar qualquer referência temporal

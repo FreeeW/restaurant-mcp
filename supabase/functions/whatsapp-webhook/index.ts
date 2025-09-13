@@ -141,7 +141,7 @@ serve(async (req) => {
         from_e164: it.from,
         direction: "in",
         message: it.text,
-        intent: null,
+        intent: "gateway",
         payload: { message_id: it.messageId }
       });
       
@@ -175,7 +175,7 @@ serve(async (req) => {
         from_e164: it.from,
         direction: "out",
         message: reply,
-        intent: null,
+        intent: "gateway",
         payload: {}
       });
     }
