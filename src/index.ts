@@ -212,7 +212,12 @@ export const toolHandlers: Record<string, ToolHandler> = {
     } catch (e: any) {
       return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
     }
+    console.log('[tool][get_conversation_history][start]', {
+      owner: owner_id.slice(0, 8), from_e164, limit
+    });
     const data = await getConversationHistory(owner_id, from_e164, limit);
+    const __count = Number((data as any)?.conversation_count ?? (Array.isArray((data as any)?.messages) ? (data as any).messages.length : 0));
+    console.log('[tool][get_conversation_history][fetched]', { count: __count });
     if (!data || !Array.isArray(data?.messages) || data.messages.length === 0) {
       const message = `Nenhum histórico de conversa encontrado para ${from_e164}.`;
       return {

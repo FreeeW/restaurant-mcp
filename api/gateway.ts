@@ -67,6 +67,14 @@ Responda em pt-BR.`;
   for (let iter = 0; iter < 6; iter++) {
     const openai = await getOpenAI();
     const forceDaily = /\\bforce:get_daily_kpi_on_date\\b/i.test(text);
+    // snapshot of what the model will see
+    console.log('[gateway][iter] messages_snapshot', iter, messages.map((m: any) => ({
+      role: m.role,
+      tool_calls: m.tool_calls?.map((t: any) => t.function?.name),
+      content_preview: typeof m.content === 'string'
+        ? m.content.slice(0, 200)
+        : m.content ? JSON.stringify(m.content).slice(0, 200) : null
+    })));
     console.log('[gateway] openai.chat.completions.create', { iter, forceDaily, toolsCount: openaiTools.length });
     lastDebug = { ...(lastDebug || {}), iter, forceDaily, toolsCount: openaiTools.length, ts: Date.now() };
     const resp = await openai.chat.completions.create({
@@ -121,11 +129,32 @@ Responda em pt-BR.`;
           const prev = Array.isArray((lastDebug || {}).results) ? lastDebug.results : [];
           lastDebug = { ...(lastDebug || {}), results: [...prev, { name, isError: !!result?.isError, hasStructured: !!result?.structuredContent }] };
         } catch {}
+        // detailed tool result logging (history sample when applicable)
+        const sc: any = result?.structuredContent ?? {};
+        const msgCount = Array.isArray(sc?.messages) ? sc.messages.length : undefined;
+        console.log('[gateway] tool_result_detail', {
+          name, isError: !!result?.isError, keys: sc ? Object.keys(sc) : [], msgCount
+        });
+        if (name === 'get_conversation_history' && msgCount) {
+          const first = sc.messages[0];
+          const last = sc.messages[msgCount - 1];
+          console.log('[gateway] history_sample', {
+            from: sc.from_e164, count: msgCount,
+            first_preview: `${first?.direction || ''}:${(first?.message || '').slice(0, 120)}`,
+            last_preview: `${last?.direction || ''}:${(last?.message || '').slice(0, 120)}`
+          });
+        }
         messages.push({
           role: 'tool',
           tool_call_id: tc.id,
           content: JSON.stringify(result?.structuredContent ?? result ?? {}),
         } as any);
+        const tail = messages.slice(-4).map((m: any) => ({
+          role: m.role,
+          hasToolCalls: !!m.tool_calls,
+          content_len: typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length
+        }));
+        console.log('[gateway] messages_tail_after_tool', tail);
         
         // If we got a valid "no data" response, encourage the AI to provide a summary
         if (result?.structuredContent?.no_data) {

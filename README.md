@@ -538,3 +538,57 @@ Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para detalhes.
 ---
 
 **🎉 Agora você tem um sistema completo de MCP unificado funcionando tanto no Claude Desktop quanto em produção via WhatsApp!**
+
+---
+
+## 📚 Guias (Condensado)
+
+### 🔔 Closing Reminder (Resumo)
+- Banco (migration `20250115_closing_reminder.sql`):
+  - `owners`: `manager_phone_e164`, `closing_time` (padrão 21:30), `closing_reminder_enabled` (bool)
+  - Nova tabela `pending_sales_input` para rastrear lembretes e respostas (índice por `manager_phone`, `status`)
+- Funções Edge:
+  - `closing-reminder`: roda via cron ou manual; seleciona donos com `closing_reminder_enabled` e telefone do gerente; aplica janela de 5 min no fuso do dono; cria `pending_sales_input`; envia template WhatsApp; loga em `delivery_logs`.
+  - `process-sales-input`: recebe texto do gerente, extrai valor (formatações BR/US), atualiza `pending_sales_input` para `completed`, insere em `form_submissions`, responde confirmação com resumo do mês.
+- Webhook (`whatsapp-webhook`): se houver `pending_sales_input` pendente para o `manager_phone`, roteia para `process-sales-input` (não passa pelo bot/IA).
+- Variáveis de ambiente relevantes:
+  - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `WHATSAPP_PHONE_ID`, `META_TOKEN`, `META_GRAPH_VERSION`
+  - `WABA_CLOSING_TEMPLATE` (ex.: `closing_reminder`), `WABA_LANG` (ex.: `pt_BR`)
+  - `WABA_TEMPLATE_HAS_VARS` (`true|false`) — quando `false`, envia o template sem parâmetros (para corpo simples como "Olá, quanto vendeu hoje?")
+- Cron (exemplo a cada 30 min):
+```sql
+SELECT cron.schedule(
+  'closing-reminder',
+  '*/30 * * * *',
+  $$ SELECT net.http_post(
+       url := 'https://<proj>.supabase.co/functions/v1/closing-reminder',
+       headers := jsonb_build_object('Authorization','Bearer <SERVICE_ROLE>')
+     ); $$
+);
+```
+- Teste manual:
+```bash
+curl -X POST \
+  "https://<proj>.supabase.co/functions/v1/closing-reminder?owner_id=<OWNER_ID>&force=true" \
+  -H "Authorization: Bearer <KEY>"
+```
+- Fluxo diário (resumo): cron → seleciona donos elegíveis → cria `pending_sales_input` → envia WhatsApp → gerente responde → webhook detecta pendência → `process-sales-input` grava e confirma.
+
+### 🧰 Multitenancy (Resumo)
+1) Aplicar migrations: `supabase db push`
+2) Deploy functions: `supabase functions deploy generate-owner-links` e `ingest-form`
+3) Capturar IDs dos outros formulários (Custos, Mão de Obra) e campos `entry.*`
+4) Atualizar `form_config` com `form_id` e `token_entry_id`
+5) Testar geração de links (POST `generate-owner-links`) e usar token oculto nos formulários (Apps Script envia `owner_token` junto ao payload)
+6) Testar ponta-a-ponta: gerar link → preencher → dados chegam em `form_submissions` relacionados ao owner correto
+
+### 🎬 Roteiro de Demonstração (Resumo)
+- Objetivo: fechar 3–5 restaurantes com teste de 30 dias
+- Antes: WhatsApp do bot ok, dashboard com `OWNER_ID`, formulários prontos
+- Demonstração:
+  - Parte 1 (WhatsApp): perguntas rápidas (ontem, semana, CMV)
+  - Parte 2 (Lançamento): preencher vendas em formulário
+  - Parte 3 (Dashboard): atualizar e mostrar KPIs do dia/mês
+- Oferta: 30 dias grátis, configuração e suporte inclusos, depois R$ 97/mês
+
+Para detalhes completos, veja os documentos: `CLOSING_REMINDER_IMPLEMENTATION.md`, `MULTITENANCY_GUIDE.md`, `DEMO_SCRIPT_FRIDAY.md`.
