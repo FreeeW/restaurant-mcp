@@ -49,6 +49,9 @@ Se disponível, use também o telefone sem + como contexto: from_e164="${(from_e
 
 CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversation_history quando apropriado (especialmente se o usuário fizer referência a mensagens anteriores).
 
+EXPRESSÕES RELATIVAS:
+- Para "semana passada", "semana retrasada", "esta semana", "mês passado", "este mês", "últimos N dias": chame primeiro resolve_relative_range para obter start/end determinísticos (sem depender do histórico) e use esses valores nas consultas (ex.: get_period_kpis, get_orders_range).
+
 REGRAS PARA DATAS AMBÍGUAS:
 - Quando o usuário disser "dia N" sem mês explícito, procure no HISTÓRICO o mês mais recente citado explicitamente (ex.: "agosto", "setembro").
 - Se encontrar um mês explícito recente, use esse mês para resolver a data e CHAME a ferramenta apropriada (ex.: get_daily_kpi_on_date, get_orders_range com start=end=YYYY-MM-DD).

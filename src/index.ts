@@ -168,6 +168,20 @@ export const tools = [
       },
       additionalProperties: false
     }
+  },
+  {
+    name: "resolve_relative_range",
+    description: "Resolve expressões temporais relativas (pt-BR) como 'semana passada', 'semana retrasada', 'esta semana', 'mês passado', 'este mês', 'últimos 7 dias', 'últimos 30 dias' em um intervalo de datas ISO (YYYY-MM-DD). Use esta ferramenta SEMPRE que detectar essas expressões para obter 'start' e 'end' determinísticos (sem depender do histórico). Semana é de segunda a domingo.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        phrase: { type: "string", description: "Ex.: 'semana passada', 'mês passado', 'semana retrasada', 'esta semana', 'últimos 7 dias'" },
+        timezone: { type: "string", description: "Timezone IANA", default: "America/Sao_Paulo" },
+        reference_date: { type: "string", description: "YYYY-MM-DD opcional; data de referência no timezone" }
+      },
+      required: ["phrase"],
+      additionalProperties: false
+    }
   }
 ] as const;
 
@@ -613,6 +627,101 @@ export const toolHandlers: Record<string, ToolHandler> = {
         content: [{ type: "text", text: e?.message || "Erro ao obter data atual" }], 
         isError: true 
       };
+    }
+  },
+  resolve_relative_range: async ({ phrase, timezone = "America/Sao_Paulo", reference_date }: { phrase: string; timezone?: string; reference_date?: string }) => {
+    try {
+      const norm = (phrase || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      if (!norm.trim()) throw new Error('phrase vazia');
+
+      // helper: get Y-M-D for now in tz if reference_date not provided
+      function getTodayYMD(tz: string): { y: number; m: number; d: number } {
+        const now = new Date();
+        const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
+        const [y, m, d] = fmt.format(now).split('-').map(v => parseInt(v, 10));
+        return { y, m, d };
+        
+      }
+      function toDateUTC(y: number, m: number, d: number): Date { return new Date(Date.UTC(y, m - 1, d)); }
+      function fromDateUTC(dt: Date): { y: number; m: number; d: number } { return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() }; }
+      function addDays(y: number, m: number, d: number, delta: number): { y: number; m: number; d: number } {
+        const t = toDateUTC(y, m, d);
+        t.setUTCDate(t.getUTCDate() + delta);
+        return fromDateUTC(t);
+      }
+      function dow(y: number, m: number, d: number): number { return toDateUTC(y, m, d).getUTCDay(); } // 0=Sun..6=Sat
+      function pad(n: number): string { return n < 10 ? `0${n}` : `${n}`; }
+      function fmtYMD(obj: { y: number; m: number; d: number }): string { return `${obj.y}-${pad(obj.m)}-${pad(obj.d)}`; }
+      function monthLastDay(y: number, m: number): number { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
+
+      let ref: { y: number; m: number; d: number };
+      if (reference_date && /\d{4}-\d{2}-\d{2}/.test(reference_date)) {
+        const [ry, rm, rd] = reference_date.split('-').map(v => parseInt(v, 10));
+        ref = { y: ry, m: rm, d: rd };
+      } else {
+        ref = getTodayYMD(timezone);
+      }
+
+      // Compute ISO week Monday (1) as start
+      const refDow = dow(ref.y, ref.m, ref.d); // 0..6
+      const deltaToMonday = ((refDow + 6) % 7); // 0 if Monday
+      const thisMon = addDays(ref.y, ref.m, ref.d, -deltaToMonday);
+      const thisSun = addDays(thisMon.y, thisMon.m, thisMon.d, 6);
+
+      let start = thisMon, end = thisSun, kind = 'current_week', explanation = 'Semana atual (seg a dom) baseada na data de referência';
+
+      const is = (...subs: string[]) => subs.some(s => norm.includes(s));
+
+      if (is('semana passada')) {
+        start = addDays(thisMon.y, thisMon.m, thisMon.d, -7);
+        end = addDays(start.y, start.m, start.d, 6);
+        kind = 'last_week';
+        explanation = 'Semana passada (seg a dom) anterior à semana da data de referência';
+      } else if (is('semana retrasada')) {
+        start = addDays(thisMon.y, thisMon.m, thisMon.d, -14);
+        end = addDays(start.y, start.m, start.d, 6);
+        kind = 'two_weeks_ago';
+        explanation = 'Semana retrasada (seg a dom) duas semanas antes da semana atual';
+      } else if (is('esta semana', 'nesta semana', 'nessa semana')) {
+        // already computed
+        kind = 'this_week';
+        explanation = 'Semana atual (seg a dom) da data de referência';
+      } else if (is('mes passado', 'mês passado')) {
+        let y = ref.y, m = ref.m - 1; if (m === 0) { m = 12; y--; }
+        start = { y, m, d: 1 };
+        end = { y, m, d: monthLastDay(y, m) };
+        kind = 'last_month';
+        explanation = 'Mês passado (1..último dia)';
+      } else if (is('este mes', 'este mês', 'neste mes', 'neste mês')) {
+        start = { y: ref.y, m: ref.m, d: 1 };
+        end = { y: ref.y, m: ref.m, d: monthLastDay(ref.y, ref.m) };
+        kind = 'this_month';
+        explanation = 'Este mês (1..último dia)';
+      } else if (is('ultimos 7 dias', 'últimos 7 dias')) {
+        start = addDays(ref.y, ref.m, ref.d, -6);
+        end = { ...ref };
+        kind = 'last_7_days';
+        explanation = 'Últimos 7 dias (inclui hoje)';
+      } else if (is('ultimos 30 dias', 'últimos 30 dias')) {
+        start = addDays(ref.y, ref.m, ref.d, -29);
+        end = { ...ref };
+        kind = 'last_30_days';
+        explanation = 'Últimos 30 dias (inclui hoje)';
+      }
+
+      const payload = {
+        kind,
+        start: fmtYMD(start),
+        end: fmtYMD(end),
+        week_start: 'monday',
+        timezone,
+        reference_date: fmtYMD(ref),
+        explanation
+      };
+      const summary = `Intervalo: ${payload.start} → ${payload.end} (${kind})`;
+      return render(payload, summary);
+    } catch (e: any) {
+      return { content: [{ type: 'text', text: e?.message || 'erro ao resolver intervalo' }], isError: true };
     }
   }
 };
