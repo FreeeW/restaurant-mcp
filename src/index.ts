@@ -634,13 +634,11 @@ export const toolHandlers: Record<string, ToolHandler> = {
       const norm = (phrase || '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
       if (!norm.trim()) throw new Error('phrase vazia');
 
-      // helper: get Y-M-D for now in tz if reference_date not provided
       function getTodayYMD(tz: string): { y: number; m: number; d: number } {
         const now = new Date();
         const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' });
         const [y, m, d] = fmt.format(now).split('-').map(v => parseInt(v, 10));
         return { y, m, d };
-        
       }
       function toDateUTC(y: number, m: number, d: number): Date { return new Date(Date.UTC(y, m - 1, d)); }
       function fromDateUTC(dt: Date): { y: number; m: number; d: number } { return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() }; }
@@ -649,7 +647,7 @@ export const toolHandlers: Record<string, ToolHandler> = {
         t.setUTCDate(t.getUTCDate() + delta);
         return fromDateUTC(t);
       }
-      function dow(y: number, m: number, d: number): number { return toDateUTC(y, m, d).getUTCDay(); } // 0=Sun..6=Sat
+      function dow(y: number, m: number, d: number): number { return toDateUTC(y, m, d).getUTCDay(); } // 0..6
       function pad(n: number): string { return n < 10 ? `0${n}` : `${n}`; }
       function fmtYMD(obj: { y: number; m: number; d: number }): string { return `${obj.y}-${pad(obj.m)}-${pad(obj.d)}`; }
       function monthLastDay(y: number, m: number): number { return new Date(Date.UTC(y, m, 0)).getUTCDate(); }
@@ -662,13 +660,14 @@ export const toolHandlers: Record<string, ToolHandler> = {
         ref = getTodayYMD(timezone);
       }
 
-      // Compute ISO week Monday (1) as start
       const refDow = dow(ref.y, ref.m, ref.d); // 0..6
       const deltaToMonday = ((refDow + 6) % 7); // 0 if Monday
       const thisMon = addDays(ref.y, ref.m, ref.d, -deltaToMonday);
-      const thisSun = addDays(thisMon.y, thisMon.m, thisMon.d, 6);
 
-      let start = thisMon, end = thisSun, kind = 'current_week', explanation = 'Semana atual (seg a dom) baseada na data de referência';
+      let start: { y: number; m: number; d: number } | null = null;
+      let end: { y: number; m: number; d: number } | null = null;
+      let kind = '';
+      let explanation = '';
 
       const is = (...subs: string[]) => subs.some(s => norm.includes(s));
 
@@ -683,7 +682,8 @@ export const toolHandlers: Record<string, ToolHandler> = {
         kind = 'two_weeks_ago';
         explanation = 'Semana retrasada (seg a dom) duas semanas antes da semana atual';
       } else if (is('esta semana', 'nesta semana', 'nessa semana')) {
-        // already computed
+        start = thisMon;
+        end = addDays(thisMon.y, thisMon.m, thisMon.d, 6);
         kind = 'this_week';
         explanation = 'Semana atual (seg a dom) da data de referência';
       } else if (is('mes passado', 'mês passado')) {
@@ -707,12 +707,14 @@ export const toolHandlers: Record<string, ToolHandler> = {
         end = { ...ref };
         kind = 'last_30_days';
         explanation = 'Últimos 30 dias (inclui hoje)';
+      } else {
+        return { content: [{ type: 'text', text: 'expressao_nao_suportada' }], isError: true } as any;
       }
 
       const payload = {
         kind,
-        start: fmtYMD(start),
-        end: fmtYMD(end),
+        start: fmtYMD(start!),
+        end: fmtYMD(end!),
         week_start: 'monday',
         timezone,
         reference_date: fmtYMD(ref),
