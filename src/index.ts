@@ -14,7 +14,7 @@ const server = new Server(
 export const tools = [
   {
     name: "get_conversation_history",
-    description: "Busca o histórico de conversas recentes para entender o contexto.",
+    description: "Busca o histórico de conversas recentes para entender o contexto. Use esta ferramenta quando a pergunta fizer referência a mensagens anteriores ou houver ambiguidade contextual (ex.: 'e dia 20?', 'neste mesmo dia', 'nessa semana', 'e em setembro?', 'isso', 'como antes'). Se não tiver certeza do período ou do que o usuário está referindo, chame esta ferramenta antes de responder.",
     inputSchema: {
       type: "object",
       properties: {

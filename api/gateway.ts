@@ -50,6 +50,9 @@ Se disponível, use também o telefone sem + como contexto: from_e164="${(from_e
 INÍCIO DA CONVERSA:
 - Sempre chame get_current_date ao iniciar a conversa para ancorar corretamente ano/mês/dia.
 
+QUANDO HOUVER DÚVIDA/AMBIGUIDADE:
+- Se a pergunta for ambígua ou depender de contexto anterior (ex.: 'e dia 20?', 'nessa semana?', 'isso?'), chame get_conversation_history para ancorar o entendimento antes de decidir outras ferramentas.
+
 EXPRESSÕES RELATIVAS:
 - Para "semana passada", "semana retrasada", "esta semana", "mês passado", "este mês", "últimos N dias": use resolve_relative_range para obter start/end determinísticos (sem depender do histórico) e use esses valores nas consultas (ex.: get_period_kpis, get_orders_range).
 
