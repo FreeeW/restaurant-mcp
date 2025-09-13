@@ -51,15 +51,14 @@ CONVERSA: Ao começar, busque o histórico recente com a ferramenta get_conversa
 
 REGRAS PARA DATAS AMBÍGUAS:
 - Quando o usuário disser "dia N" sem mês explícito, procure no HISTÓRICO o mês mais recente citado explicitamente (ex.: "agosto", "setembro").
-- Se encontrar um mês explícito recente, use esse mês para resolver a data e CHAME a ferramenta apropriada.
+- Se encontrar um mês explícito recente, use esse mês para resolver a data e CHAME a ferramenta apropriada (ex.: get_daily_kpi_on_date, get_orders_range com start=end=YYYY-MM-DD).
 - Se NÃO houver mês explícito no histórico, PERGUNTE qual mês (não assuma o mês atual).
 - Só assuma o mês atual quando o usuário disser claramente "este mês", "agora" ou similar.
 
 CONTEXTO TEMPORAL CRÍTICO:
-- SEMPRE chame get_current_date PRIMEIRO antes de interpretar qualquer referência temporal
-- "hoje", "ontem", "esta semana", "mês passado", "agosto" → precisa saber o ano atual
-- Use a data atual retornada para calcular datas específicas (YYYY-MM-DD)
-- Nunca assuma o ano - sempre obtenha via get_current_date
+- Chame get_current_date APENAS quando houver referências RELATIVAS ("hoje", "ontem", "esta semana", "mês passado") ou quando precisar do ANO para uma data que já tenha mês e dia.
+- Não chame get_current_date para substituir uma data explícita obtida do histórico.
+- Use a data atual apenas para completar o ano quando necessário, não para mudar mês/dia.
 
 IMPORTANTE: Se uma ferramenta retornar "no_data: true", isso significa que não há dados para aquela data/período específico. NÃO continue tentando outras datas - em vez disso, forneça uma resposta útil explicando que não há dados disponíveis para o período solicitado.
 
@@ -149,6 +148,37 @@ Responda em pt-BR.`;
             first_preview: `${first?.direction || ''}:${(first?.message || '').slice(0, 120)}`,
             last_preview: `${last?.direction || ''}:${(last?.message || '').slice(0, 120)}`
           });
+          // Inject a short, explicit context hint for date disambiguation based on history
+          try {
+            const monthMap: Record<string, number> = {
+              'janeiro': 1, 'fevereiro': 2, 'março': 3, 'marco': 3, 'abril': 4, 'maio': 5, 'junho': 6,
+              'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
+            };
+            const rxFull = /\b(?:no\s+dia\s+)?(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?/i;
+            let foundText: string | null = null;
+            let foundDay: number | null = null;
+            let foundMonth: number | null = null;
+            let foundYear: number | null = null;
+            for (const m of (Array.isArray(sc.messages) ? sc.messages : [])) {
+              const txt = String(m?.message || '');
+              const mm = txt.match(rxFull);
+              if (mm) {
+                foundText = mm[0];
+                foundDay = parseInt(mm[1], 10);
+                const mon = (mm[2] || '').toLowerCase();
+                foundMonth = monthMap[mon] || null;
+                foundYear = mm[3] ? parseInt(mm[3], 10) : null;
+                break; // use the most recent mention (messages are desc ordered)
+              }
+            }
+            if (foundDay && foundMonth) {
+              const hint = `Contexto do histórico: última data explícita mencionada: ${String(foundDay).padStart(2,'0')}/${String(foundMonth).padStart(2,'0')}${foundYear ? '/' + foundYear : ''}. Se o usuário disser "neste mesmo dia" ou "dia N" se referindo a esta conversa, interprete como esta data e não chame get_current_date.`;
+              messages.push({ role: 'system', content: hint });
+              console.log('[gateway] injected_history_hint', { hint });
+            }
+          } catch (e) {
+            console.log('[gateway] inject_history_hint_error', { err: (e as any)?.message });
+          }
         }
         messages.push({
           role: 'tool',
