@@ -49,6 +49,37 @@ export function assertTemplate(t: string) {
   if (!t || !ALLOWED_TEMPLATES.has(t)) throw new Error("invalid template");
 }
 
+// Categorias válidas para alvarás
+export const LICENSE_CATEGORIES = new Set([
+  'sanitario',
+  'bombeiros', 
+  'funcionamento',
+  'ambiental',
+  'outros'
+]);
+
+export function assertLicenseCategory(category?: string | null) {
+  if (!category) return; // opcional
+  if (!LICENSE_CATEGORIES.has(category)) {
+    throw new Error(`Categoria inválida. Use: ${Array.from(LICENSE_CATEGORIES).join(', ')}`);
+  }
+}
+
+// Status válidos para alvarás
+export const LICENSE_STATUS = new Set([
+  'active',
+  'expired',
+  'pending_renewal',
+  'renewed',
+  'cancelled'
+]);
+
+export function assertLicenseStatus(status: string) {
+  if (!status || !LICENSE_STATUS.has(status)) {
+    throw new Error(`Status inválido. Use: ${Array.from(LICENSE_STATUS).join(', ')}`);
+  }
+}
+
 export const __KEEP = true;
 
 

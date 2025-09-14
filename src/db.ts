@@ -144,3 +144,81 @@ export async function getConversationHistory(ownerId: string, fromE164: string, 
   return data; // { owner_id, from_e164, conversation_count, messages: [{direction,message,created_at}] }
 }
 
+// ========== FUNÇÕES DE ALVARÁS/LICENÇAS ==========
+
+// Lista status de todos os alvarás
+export async function getLicensesStatus(ownerId: string, includeExpired: boolean = false) {
+  const { data, error } = await sb.rpc("get_licenses_status", {
+    p_owner: ownerId,
+    p_include_expired: includeExpired
+  });
+  if (error) throw new Error(error.message);
+  return data; // { owner_id, summary: {total,expired,expiring_soon,renewal_approaching,ok}, licenses: [...] }
+}
+
+// Lista alvarás próximos do vencimento
+export async function getExpiringLicenses(ownerId: string, daysAhead: number = 30) {
+  const { data, error } = await sb.rpc("get_expiring_licenses", {
+    p_owner: ownerId,
+    p_days_ahead: daysAhead
+  });
+  if (error) throw new Error(error.message);
+  return data; // { owner_id, days_ahead, count, licenses: [...] }
+}
+
+// Adiciona novo alvará
+export async function addLicense(
+  ownerId: string,
+  title: string,
+  expiryDate: string,
+  options: {
+    license_number?: string | null;
+    issuing_authority?: string | null;
+    issue_date?: string | null;
+    renewal_deadline?: string | null;
+    category?: string | null;
+    notes?: string | null;
+  } = {}
+) {
+  const { data, error } = await sb.rpc("add_license", {
+    p_owner: ownerId,
+    p_title: title,
+    p_expiry_date: expiryDate,
+    p_license_number: options.license_number ?? null,
+    p_issuing_authority: options.issuing_authority ?? null,
+    p_issue_date: options.issue_date ?? null,
+    p_renewal_deadline: options.renewal_deadline ?? null,
+    p_category: options.category ?? null,
+    p_notes: options.notes ?? null
+  });
+  if (error) throw new Error(error.message);
+  return data; // { id, owner_id, title, expiry_date, ... }
+}
+
+// Atualiza status de um alvará
+export async function updateLicenseStatus(
+  ownerId: string,
+  licenseId: string,
+  status: string,
+  notes?: string | null
+) {
+  const { data, error } = await sb.rpc("update_license_status", {
+    p_owner: ownerId,
+    p_license_id: licenseId,
+    p_status: status,
+    p_notes: notes ?? null
+  });
+  if (error) throw new Error(error.message);
+  return data; // { id, title, status, expiry_date, updated_at }
+}
+
+// Busca alvará por ID
+export async function getLicenseById(ownerId: string, licenseId: string) {
+  const { data, error } = await sb.rpc("get_license_by_id", {
+    p_owner: ownerId,
+    p_license_id: licenseId
+  });
+  if (error) throw new Error(error.message);
+  return data; // { id, owner_id, title, ... }
+}
+

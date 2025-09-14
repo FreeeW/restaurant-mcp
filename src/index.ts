@@ -1,8 +1,8 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory } from "./db.js";
-import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164, assertPhoneDigits } from "./validators.js";
+import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory, getLicensesStatus, getExpiringLicenses, addLicense, updateLicenseStatus, getLicenseById } from "./db.js";
+import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164, assertPhoneDigits, assertLicenseCategory, assertLicenseStatus } from "./validators.js";
 
 // ---- MCP server ----
 const server = new Server(
@@ -180,6 +180,81 @@ export const tools = [
         reference_date: { type: "string", description: "YYYY-MM-DD opcional; data de referência no timezone" }
       },
       required: ["phrase"],
+      additionalProperties: false
+    }
+  },
+  // ========== TOOLS DE ALVARÁS/LICENÇAS ==========
+  {
+    name: "get_licenses_status",
+    description: "Lista todos os alvarás/licenças e suas situações (vencidos, próximos do vencimento, ok). Use quando perguntarem sobre alvarás, licenças, documentos de funcionamento, vigilância sanitária, bombeiros, etc.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        include_expired: { type: "boolean", description: "Incluir alvarás vencidos (padrão: false)" }
+      },
+      required: ["owner_id"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_expiring_licenses",
+    description: "Lista alvarás próximos do vencimento. Use para verificar quais documentos precisam ser renovados em breve.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        days_ahead: { type: "number", description: "Quantos dias à frente verificar (padrão: 30)" }
+      },
+      required: ["owner_id"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "add_license",
+    description: "Adiciona um novo alvará ou licença ao sistema de controle.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        title: { type: "string", description: "Nome do alvará (ex: Alvará de Funcionamento)" },
+        expiry_date: { type: "string", description: "Data de vencimento (YYYY-MM-DD)" },
+        license_number: { type: "string", description: "Número do documento (opcional)" },
+        issuing_authority: { type: "string", description: "Órgão emissor (opcional)" },
+        issue_date: { type: "string", description: "Data de emissão (YYYY-MM-DD) (opcional)" },
+        renewal_deadline: { type: "string", description: "Prazo para renovação (YYYY-MM-DD) (opcional)" },
+        category: { type: "string", description: "Categoria: sanitario, bombeiros, funcionamento, ambiental, outros (opcional)" },
+        notes: { type: "string", description: "Observações (opcional)" }
+      },
+      required: ["owner_id", "title", "expiry_date"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "update_license_status",
+    description: "Atualiza o status de um alvará existente (ex: renovado, cancelado, pendente de renovação).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        license_id: { type: "string", description: "UUID do alvará" },
+        status: { type: "string", description: "Novo status: active, expired, pending_renewal, renewed, cancelled" },
+        notes: { type: "string", description: "Observações sobre a atualização (opcional)" }
+      },
+      required: ["owner_id", "license_id", "status"],
+      additionalProperties: false
+    }
+  },
+  {
+    name: "get_license_by_id",
+    description: "Busca detalhes de um alvará específico pelo ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        license_id: { type: "string", description: "UUID do alvará" }
+      },
+      required: ["owner_id", "license_id"],
       additionalProperties: false
     }
   }
@@ -725,6 +800,185 @@ export const toolHandlers: Record<string, ToolHandler> = {
     } catch (e: any) {
       return { content: [{ type: 'text', text: e?.message || 'erro ao resolver intervalo' }], isError: true };
     }
+  },
+  
+  // ========== HANDLERS DE ALVARÁS/LICENÇAS ==========
+  get_licenses_status: async ({ owner_id, include_expired = false }) => {
+    try {
+      validateUUID(owner_id);
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    const data = await getLicensesStatus(owner_id, include_expired);
+    
+    if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+      const message = `Nenhum alvará cadastrado para este restaurante.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          owner_id,
+          message,
+          summary: { total: 0, expired: 0, expiring_soon: 0, renewal_approaching: 0, ok: 0 },
+          licenses: []
+        },
+        isError: false
+      };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const summary = safe?.summary;
+    
+    // Criar mensagem de resumo
+    let summaryText = `Status de Alvarás — Total: ${summary?.total || 0}`;
+    if (summary?.expired > 0) summaryText += ` • Vencidos: ${summary.expired}`;
+    if (summary?.expiring_soon > 0) summaryText += ` • Vencendo em breve: ${summary.expiring_soon}`;
+    if (summary?.renewal_approaching > 0) summaryText += ` • Renovação próxima: ${summary.renewal_approaching}`;
+    if (summary?.ok > 0) summaryText += ` • Em dia: ${summary.ok}`;
+    
+    return render(safe, summaryText);
+  },
+
+  get_expiring_licenses: async ({ owner_id, days_ahead = 30 }) => {
+    try {
+      validateUUID(owner_id);
+      const days = Number(days_ahead);
+      if (!Number.isFinite(days) || days <= 0 || days > 365) {
+        throw new Error("days_ahead deve ser entre 1 e 365");
+      }
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    const data = await getExpiringLicenses(owner_id, days_ahead);
+    
+    if (!data || data?.count === 0) {
+      const message = `Nenhum alvará vencendo nos próximos ${days_ahead} dias.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          owner_id,
+          days_ahead,
+          message,
+          count: 0,
+          licenses: []
+        },
+        isError: false
+      };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const summary = `Alvarás vencendo em ${days_ahead} dias — Total: ${safe?.count || 0}`;
+    
+    return render(safe, summary);
+  },
+
+  add_license: async ({ owner_id, title, expiry_date, license_number, issuing_authority, issue_date, renewal_deadline, category, notes }) => {
+    try {
+      validateUUID(owner_id);
+      if (!title || title.trim() === '') throw new Error("Título é obrigatório");
+      if (!isYMD(expiry_date)) throw new Error("Data de vencimento inválida (YYYY-MM-DD)");
+      
+      // Validações opcionais
+      if (issue_date && !isYMD(issue_date)) throw new Error("Data de emissão inválida (YYYY-MM-DD)");
+      if (renewal_deadline && !isYMD(renewal_deadline)) throw new Error("Prazo de renovação inválido (YYYY-MM-DD)");
+      if (category) assertLicenseCategory(category);
+      
+      // Validação lógica de datas
+      if (issue_date && issue_date > expiry_date) {
+        throw new Error("Data de emissão não pode ser posterior ao vencimento");
+      }
+      if (renewal_deadline && renewal_deadline > expiry_date) {
+        throw new Error("Prazo de renovação não pode ser posterior ao vencimento");
+      }
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    const data = await addLicense(owner_id, title, expiry_date, {
+      license_number,
+      issuing_authority,
+      issue_date,
+      renewal_deadline,
+      category,
+      notes
+    });
+    
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+      return { content: [{ type: "text", text: `Falha ao adicionar alvará.` }], isError: true };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const daysUntil = safe?.days_until_expiry;
+    let statusMsg = daysUntil < 0 ? " (VENCIDO)" : daysUntil <= 30 ? " (ATENÇÃO: vence em breve)" : "";
+    
+    const summary = `Alvará adicionado: ${safe?.title} — Vence: ${safe?.expiry_date}${statusMsg}`;
+    
+    return render(safe, summary);
+  },
+
+  update_license_status: async ({ owner_id, license_id, status, notes }) => {
+    try {
+      validateUUID(owner_id);
+      validateUUID(license_id);
+      assertLicenseStatus(status);
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    const data = await updateLicenseStatus(owner_id, license_id, status, notes);
+    
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
+      return { content: [{ type: "text", text: `Falha ao atualizar status do alvará.` }], isError: true };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const statusMap: Record<string, string> = {
+      'active': 'Ativo',
+      'expired': 'Vencido',
+      'pending_renewal': 'Pendente de Renovação',
+      'renewed': 'Renovado',
+      'cancelled': 'Cancelado'
+    };
+    
+    const summary = `Status atualizado: ${safe?.title} — Novo status: ${statusMap[safe?.status] || safe?.status}`;
+    
+    return render(safe, summary);
+  },
+
+  get_license_by_id: async ({ owner_id, license_id }) => {
+    try {
+      validateUUID(owner_id);
+      validateUUID(license_id);
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    const data = await getLicenseById(owner_id, license_id);
+    
+    if (!data) {
+      const message = `Alvará não encontrado.`;
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: {
+          no_data: true,
+          owner_id,
+          license_id,
+          message
+        },
+        isError: false
+      };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const daysUntil = safe?.days_until_expiry;
+    let statusMsg = daysUntil < 0 ? " (VENCIDO)" : daysUntil <= 30 ? " (vence em breve)" : "";
+    
+    const summary = `Alvará: ${safe?.title} — Vence: ${safe?.expiry_date}${statusMsg} • Status: ${safe?.status}`;
+    
+    return render(safe, summary);
   }
 };
 
