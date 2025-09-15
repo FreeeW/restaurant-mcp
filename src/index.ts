@@ -1,7 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory, getLicensesStatus, getExpiringLicenses, addLicense, updateLicenseStatus, getLicenseById } from "./db.js";
+import { getDailyKpi, getDailyKpiOnDate, getPeriodKpis, getShiftsRange, getEmployeePay, getOrdersRange, getNotesRange, addEvent, getEventsRange, employeeExists, getConversationHistory, getLicensesStatus, getExpiringLicenses, addLicense, updateLicenseStatus, getLicenseById, searchEmployeesByName } from "./db.js";
 import { validateUUID, isYMD, assertDateRange, assertEmpCode, assertHHMM, assertE164, assertPhoneDigits, assertLicenseCategory, assertLicenseStatus } from "./validators.js";
 
 // ---- MCP server ----
@@ -81,8 +81,21 @@ export const tools = [
     }
   },
   {
+    name: "search_employees_by_name",
+    description: "Busca funcionários ativos por nome ou código (parcial ou completo). Use esta ferramenta SEMPRE que o usuário mencionar um funcionário por nome ao invés de código. Retorna lista de funcionários que correspondem ao termo de busca, com seus códigos, nomes completos e informações adicionais. Se houver múltiplos resultados, pergunte ao usuário qual especificamente ele se refere.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        owner_id: { type: "string", description: "UUID do proprietário" },
+        search_term: { type: "string", description: "Nome ou parte do nome do funcionário (ex: 'joão', 'maria', 'silva')" }
+      },
+      required: ["owner_id", "search_term"],
+      additionalProperties: false
+    }
+  },
+  {
     name: "get_employee_pay",
-    description: "Daily hours, rate, totals for one employee in a range",
+    description: "Daily hours, rate, totals for one employee in a range. IMPORTANTE: Requer o código exato do funcionário (ex: GAR1, GAR2). Se o usuário fornecer um nome, use 'search_employees_by_name' primeiro para obter o código.",
     inputSchema: {
       type: "object",
       properties: {
@@ -533,6 +546,71 @@ export const toolHandlers: Record<string, ToolHandler> = {
     const total = Number(safe?.total_hours || 0).toLocaleString("pt-BR");
     const byEmp = Array.isArray(safe?.by_emp) ? safe.by_emp.length : 0;
     const summary = `Shifts ${start} → ${end} — Total horas: ${total} • Funcionários: ${byEmp}`;
+    return render(safe, summary);
+  },
+  search_employees_by_name: async ({ owner_id, search_term }) => {
+    try {
+      validateUUID(owner_id);
+      const term = (search_term || '').trim();
+      if (!term) throw new Error("Termo de busca vazio");
+    } catch (e: any) {
+      return { content: [{ type: "text", text: e?.message || "Invalid arguments" }], isError: true };
+    }
+    
+    console.log('[tool][search_employees_by_name][start]', {
+      owner: owner_id.slice(0, 8), 
+      search_term
+    });
+    
+    const data = await searchEmployeesByName(owner_id, search_term);
+    
+    if (!data || !data.success) {
+      const message = data?.message || `Erro ao buscar funcionário com termo '${search_term}'.`;
+      return { 
+        content: [{ type: "text", text: message }], 
+        structuredContent: { no_data: true, search_term, message },
+        isError: true 
+      };
+    }
+    
+    const safe = JSON.parse(JSON.stringify(data));
+    const count = safe?.count || 0;
+    
+    console.log('[tool][search_employees_by_name][result]', { 
+      count, 
+      employees: safe?.employees?.map((e: any) => ({ code: e.emp_code, name: e.emp_name })) 
+    });
+    
+    // Sem resultados
+    if (count === 0) {
+      let message = safe?.message || `Nenhum funcionário encontrado com '${search_term}'.`;
+      
+      // Se há sugestões, incluí-las
+      if (safe?.suggestions && Array.isArray(safe.suggestions) && safe.suggestions.length > 0) {
+        message += ` Talvez você quis dizer: ${safe.suggestions.map((s: any) => `${s.emp_name} (${s.emp_code})`).join(', ')}.`;
+      }
+      
+      return {
+        content: [{ type: "text", text: message }],
+        structuredContent: safe,
+        isError: false
+      };
+    }
+    
+    // Um único resultado - retornar direto
+    if (count === 1) {
+      const emp = safe.employees[0];
+      const summary = `Funcionário encontrado: ${emp.emp_name} (Código: ${emp.emp_code})${emp.worked_recently ? ' • Trabalhou recentemente' : ''}`;
+      return render(safe, summary);
+    }
+    
+    // Múltiplos resultados
+    const employeeList = safe.employees.map((e: any) => 
+      `${e.emp_name} (${e.emp_code})${e.worked_recently ? ' ✓' : ''}`
+    ).join(', ');
+    
+    const summary = `${count} funcionários encontrados para '${search_term}': ${employeeList}`;
+    
     return render(safe, summary);
   },
   get_employee_pay: async ({ owner_id, emp_code, start, end }) => {

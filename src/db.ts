@@ -222,3 +222,13 @@ export async function getLicenseById(ownerId: string, licenseId: string) {
   return data; // { id, owner_id, title, ... }
 }
 
+// Busca funcionários por nome ou código (parcial ou completo)
+export async function searchEmployeesByName(ownerId: string, searchTerm: string) {
+  const { data, error } = await sb.rpc("search_employees_by_name", {
+    p_owner: ownerId,
+    p_search_term: searchTerm
+  });
+  if (error) throw new Error(error.message);
+  return data; // { success, search_term, count, employees: [{emp_code, emp_name, ...}], suggestions?: [...] }
+}
+
