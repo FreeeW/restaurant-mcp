@@ -22,6 +22,9 @@ serve(async (req) => {
       phone_e164, 
       business_name,
       stripe_customer_id,
+      manager_phone_e164,
+      closing_time,
+      closing_reminder_enabled,
       metadata = {}
     } = await req.json();
 
@@ -41,12 +44,29 @@ serve(async (req) => {
     // Check if owner already exists
     const { data: existingOwner } = await supabase
       .from("owners")
-      .select("id")
+      .select("id, manager_phone_e164, closing_time, closing_reminder_enabled")
       .eq("phone_e164", phone_e164)
       .single();
 
     if (existingOwner) {
-      // Owner exists, just generate links
+      // Owner exists, update manager fields if provided
+      if (manager_phone_e164 !== undefined || closing_time !== undefined || closing_reminder_enabled !== undefined) {
+        const updateData: Record<string, unknown> = {};
+        if (manager_phone_e164 !== undefined) updateData.manager_phone_e164 = manager_phone_e164;
+        if (closing_time !== undefined) updateData.closing_time = closing_time;
+        if (closing_reminder_enabled !== undefined) updateData.closing_reminder_enabled = closing_reminder_enabled;
+
+        const { error: updateError } = await supabase
+          .from("owners")
+          .update(updateData)
+          .eq("id", existingOwner.id);
+
+        if (updateError) {
+          console.error("Error updating owner manager fields:", updateError);
+        }
+      }
+
+      // Generate links
       const linksResponse = await fetch(
         `${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-owner-links`,
         {
@@ -72,23 +92,36 @@ serve(async (req) => {
       );
     }
 
-    // Create new owner
+    // Create new owner with manager fields
+    const ownerData: Record<string, unknown> = {
+      phone_e164,
+      business_name,
+      email,
+      active: true,
+      onboarded_at: new Date().toISOString(),
+      subscription_status: stripe_customer_id ? 'active' : 'trial',
+      settings: {
+        timezone: "America/Sao_Paulo",
+        language: "pt-BR",
+        stripe_customer_id,
+        ...metadata
+      }
+    };
+
+    // Add manager fields if provided
+    if (manager_phone_e164) {
+      ownerData.manager_phone_e164 = manager_phone_e164;
+    }
+    if (closing_time) {
+      ownerData.closing_time = closing_time;
+    }
+    if (closing_reminder_enabled !== undefined) {
+      ownerData.closing_reminder_enabled = closing_reminder_enabled;
+    }
+
     const { data: newOwner, error: ownerError } = await supabase
       .from("owners")
-      .insert({
-        phone_e164,
-        business_name,
-        email,
-        active: true,
-        onboarded_at: new Date().toISOString(),
-        subscription_status: stripe_customer_id ? 'active' : 'trial',
-        settings: {
-          timezone: "America/Sao_Paulo",
-          language: "pt-BR",
-          stripe_customer_id,
-          ...metadata
-        }
-      })
+      .insert(ownerData)
       .select()
       .single();
 
@@ -117,11 +150,11 @@ serve(async (req) => {
 
     // Send welcome email if email provided
     if (email) {
-      await sendWelcomeEmail(email, business_name, linksData.links);
+      await sendWelcomeEmail(email, business_name, linksData.links, manager_phone_e164, closing_time);
     }
 
     // Send WhatsApp welcome message
-    await sendWhatsAppWelcome(phone_e164, business_name, linksData.links);
+    await sendWhatsAppWelcome(phone_e164, business_name, linksData.links, manager_phone_e164, closing_time);
 
     return new Response(
       JSON.stringify({
@@ -130,7 +163,8 @@ serve(async (req) => {
         owner_id: newOwner.id,
         ...linksData,
         email_sent: !!email,
-        whatsapp_sent: true
+        whatsapp_sent: true,
+        manager_configured: !!manager_phone_e164
       }),
       { status: 201, headers: { ...CORS, "Content-Type": "application/json" } }
     );
@@ -138,13 +172,13 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error in onboard-owner:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : String(error) }),
       { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
     );
   }
 });
 
-async function sendWelcomeEmail(email: string, businessName: string, links: any) {
+async function sendWelcomeEmail(email: string, businessName: string, links: Record<string, string>, managerPhone?: string, closingTime?: string) {
   // If you're using Resend
   const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
   if (!RESEND_API_KEY) {
@@ -185,6 +219,13 @@ async function sendWelcomeEmail(email: string, businessName: string, links: any)
           border-radius: 6px; 
           margin: 20px 0;
         }
+        .manager-info {
+          background: #dbeafe;
+          border: 1px solid #60a5fa;
+          padding: 15px;
+          border-radius: 6px;
+          margin: 20px 0;
+        }
       </style>
     </head>
     <body>
@@ -198,25 +239,42 @@ async function sendWelcomeEmail(email: string, businessName: string, links: any)
           
           <p>Olá! Seu sistema de gestão está configurado e pronto para uso.</p>
           
+          ${managerPhone ? `
+          <div class="manager-info">
+            <strong>📱 Gerente Configurado:</strong><br>
+            Número: ${managerPhone}<br>
+            ${closingTime ? `Horário do lembrete diário: ${closingTime}<br>` : ''}
+            O gerente receberá um lembrete diário via WhatsApp para informar as vendas.
+          </div>
+          ` : ''}
+          
           <div class="form-link">
             <h3>📊 Formulário de Vendas Diárias</h3>
             <p>Registre as vendas do dia</p>
             <a href="${links.vendas}" class="button">Acessar Formulário</a>
           </div>
           
-          ${links.custos ? `
+          ${links.cadastro_funcionario ? `
           <div class="form-link">
-            <h3>💰 Formulário de Custos</h3>
-            <p>Registre compras e custos de alimentos</p>
-            <a href="${links.custos}" class="button">Acessar Formulário</a>
+            <h3>👥 Cadastrar Funcionário</h3>
+            <p>Adicione novos membros da equipe</p>
+            <a href="${links.cadastro_funcionario}" class="button">Acessar Formulário</a>
           </div>
           ` : ''}
           
           ${links.mao_de_obra ? `
           <div class="form-link">
-            <h3>👥 Formulário de Mão de Obra</h3>
+            <h3>⏰ Registro de Turnos</h3>
             <p>Registre horas trabalhadas da equipe</p>
             <a href="${links.mao_de_obra}" class="button">Acessar Formulário</a>
+          </div>
+          ` : ''}
+
+          ${links.pedido_recebido ? `
+          <div class="form-link">
+            <h3>📦 Pedidos Recebidos</h3>
+            <p>Registre entregas de fornecedores</p>
+            <a href="${links.pedido_recebido}" class="button">Acessar Formulário</a>
           </div>
           ` : ''}
           
@@ -230,7 +288,7 @@ async function sendWelcomeEmail(email: string, businessName: string, links: any)
           
           <h3>Como funciona:</h3>
           <ol>
-            <li>Preencha os formulários diariamente</li>
+            <li>Preencha os formulários diariamente (ou o gerente informa via WhatsApp)</li>
             <li>Receba KPIs toda manhã às 9h via WhatsApp</li>
             <li>Consulte dados a qualquer momento pelo WhatsApp</li>
           </ol>
@@ -273,10 +331,14 @@ async function sendWelcomeEmail(email: string, businessName: string, links: any)
   }
 }
 
-async function sendWhatsAppWelcome(phone: string, businessName: string, links: any) {
+function sendWhatsAppWelcome(phone: string, businessName: string, _links: Record<string, string>, managerPhone?: string, closingTime?: string) {
   // This would integrate with your WhatsApp sending logic
   // For now, just log it
   console.log(`Would send WhatsApp welcome to ${phone} for ${businessName}`);
+  
+  if (managerPhone) {
+    console.log(`Manager configured: ${managerPhone}, closing time: ${closingTime}`);
+  }
   
   // If you have WhatsApp API configured:
   /*
@@ -285,13 +347,21 @@ async function sendWhatsAppWelcome(phone: string, businessName: string, links: a
 Seus formulários estão prontos:
 
 📊 *Vendas Diárias*
-${links.vendas}
+${_links.vendas}
 
-💰 *Custos de Alimentos*
-${links.custos || 'Em breve'}
+👥 *Cadastrar Funcionário*
+${_links.cadastro_funcionario}
 
-👥 *Mão de Obra*
-${links.mao_de_obra || 'Em breve'}
+⏰ *Registro de Turnos*
+${_links.mao_de_obra}
+
+📦 *Pedidos Recebidos*
+${_links.pedido_recebido}
+
+${managerPhone ? `📱 *Gerente Configurado*
+Número: ${managerPhone}
+${closingTime ? `Lembrete diário às: ${closingTime}` : ''}
+O gerente receberá lembretes diários para informar vendas.` : ''}
 
 ⚠️ *IMPORTANTE:* Use sempre estes links específicos!
 

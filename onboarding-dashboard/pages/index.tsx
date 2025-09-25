@@ -18,7 +18,11 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
-  ChevronRight
+  ChevronRight,
+  UserCheck,
+  Clock,
+  Info,
+  Settings
 } from 'lucide-react'
 
 // Initialize Supabase client
@@ -34,6 +38,9 @@ interface Owner {
   email?: string
   created_at: string
   subscription_status: string
+  manager_phone_e164?: string
+  closing_time?: string
+  closing_reminder_enabled?: boolean
 }
 
 interface FormLinks {
@@ -57,6 +64,9 @@ export default function Dashboard() {
   const [businessName, setBusinessName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [managerPhone, setManagerPhone] = useState('')
+  const [closingTime, setClosingTime] = useState('21:30')
+  const [enableReminder, setEnableReminder] = useState(true)
 
   // Fetch existing owners on mount
   useEffect(() => {
@@ -105,18 +115,28 @@ export default function Dashboard() {
     setPhone(formatted)
   }
 
+  const handleManagerPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value)
+    setManagerPhone(formatted)
+  }
+
   const onboardNewOwner = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
     try {
       const phoneE164 = cleanPhone(phone)
+      const managerPhoneE164 = managerPhone ? cleanPhone(managerPhone) : null
       
       if (phoneE164.length < 13) {
-        throw new Error('Telefone inválido. Use o formato (11) 99999-9999')
+        throw new Error('Telefone do proprietário inválido. Use o formato (11) 99999-9999')
       }
 
-      // Call the edge function
+      if (managerPhoneE164 && managerPhoneE164.length < 13) {
+        throw new Error('Telefone do gerente inválido. Use o formato (11) 99999-9999')
+      }
+
+      // Call the edge function with additional manager fields
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/onboard-owner`,
         {
@@ -129,6 +149,9 @@ export default function Dashboard() {
             phone_e164: phoneE164,
             business_name: businessName,
             email: email || undefined,
+            manager_phone_e164: managerPhoneE164,
+            closing_time: closingTime,
+            closing_reminder_enabled: enableReminder && !!managerPhoneE164
           }),
         }
       )
@@ -146,6 +169,9 @@ export default function Dashboard() {
         phone_e164: phoneE164,
         business_name: businessName,
         email: email || undefined,
+        manager_phone_e164: managerPhoneE164 || undefined,
+        closing_time: closingTime,
+        closing_reminder_enabled: enableReminder && !!managerPhoneE164,
         created_at: new Date().toISOString(),
         subscription_status: 'trial'
       })
@@ -159,6 +185,9 @@ export default function Dashboard() {
       setBusinessName('')
       setPhone('')
       setEmail('')
+      setManagerPhone('')
+      setClosingTime('21:30')
+      setEnableReminder(true)
 
     } catch (error: any) {
       console.error('Error:', error)
@@ -231,6 +260,13 @@ ${generatedLinks.mao_de_obra}
 📦 *PEDIDOS RECEBIDOS*
 ${generatedLinks.pedido_recebido}
 
+⏰ *Horário de Fechamento: ${ownerData.closing_time}*
+
+${ownerData.manager_phone_e164 ? `📱 *Gerente Configurado*
+Número: ${ownerData.manager_phone_e164}
+Lembrete diário: ${ownerData.closing_reminder_enabled ? `Sim, às ${ownerData.closing_time}` : 'Desativado'}
+O gerente receberá um lembrete diário para informar as vendas via WhatsApp.` : ''}
+
 *Como usar:*
 1️⃣ Salve esses links nos favoritos
 2️⃣ Preencha vendas todo dia no fechamento
@@ -302,7 +338,7 @@ Digite "ajuda" para ver comandos disponíveis.`
               <div>
                 <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
                   <Phone className="w-4 h-4" />
-                  WhatsApp
+                  WhatsApp do Proprietário
                 </label>
                 <input
                   type="tel"
@@ -312,6 +348,9 @@ Digite "ajuda" para ver comandos disponíveis.`
                   placeholder="5511999999999"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Número principal para interações com o bot
+                </p>
               </div>
 
               <div>
@@ -326,6 +365,90 @@ Digite "ajuda" para ver comandos disponíveis.`
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-gray-900"
                   placeholder="joao@restaurante.com"
                 />
+              </div>
+
+              {/* Restaurant Settings Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Settings className="w-5 h-5 text-purple-500" />
+                  <h3 className="font-semibold text-gray-800">Configurações do Restaurante</h3>
+                </div>
+                
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <Clock className="w-4 h-4" />
+                    Horário de Fechamento
+                  </label>
+                  <input
+                    type="time"
+                    value={closingTime}
+                    onChange={(e) => setClosingTime(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-gray-900"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Horário em que o restaurante encerra o expediente
+                  </p>
+                </div>
+              </div>
+
+              {/* Manager Section */}
+              <div className="border-t pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <UserCheck className="w-5 h-5 text-blue-500" />
+                  <h3 className="font-semibold text-gray-800">Configuração do Gerente (Opcional)</h3>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-4 h-4 text-blue-600 mt-0.5" />
+                    <div className="text-sm text-blue-900">
+                      <p className="font-medium mb-1">Lembrete Diário de Vendas</p>
+                      <p className="text-xs text-blue-700">
+                        Se configurado, o gerente receberá um lembrete diário via WhatsApp no horário de fechamento. 
+                        Ao responder com o valor das vendas, o sistema registra automaticamente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
+                    <UserCheck className="w-4 h-4" />
+                    WhatsApp do Gerente
+                  </label>
+                  <input
+                    type="tel"
+                    value={managerPhone}
+                    onChange={handleManagerPhoneChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-gray-900"
+                    placeholder="5511999999999"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Deixe em branco se o proprietário for gerenciar pessoalmente
+                  </p>
+                </div>
+
+                {managerPhone && (
+                  <div className="mt-4 animate-in slide-in-from-top-2">
+                    <label className="flex items-center gap-2 cursor-pointer bg-green-50 p-3 rounded-lg border border-green-200">
+                      <input
+                        type="checkbox"
+                        checked={enableReminder}
+                        onChange={(e) => setEnableReminder(e.target.checked)}
+                        className="w-5 h-5 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-700">
+                          Ativar lembretes diários
+                        </span>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          Enviar lembrete às {closingTime} para o gerente informar as vendas
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
 
               <button
@@ -364,6 +487,17 @@ Digite "ajuda" para ver comandos disponíveis.`
                   <p className="text-xs text-emerald-600">
                     {ownerData.phone_e164} {ownerData.email && `• ${ownerData.email}`}
                   </p>
+                  <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Fechamento: {ownerData.closing_time}
+                  </p>
+                  {ownerData.manager_phone_e164 && (
+                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                      <UserCheck className="w-3 h-3" />
+                      Gerente: {ownerData.manager_phone_e164} 
+                      {ownerData.closing_reminder_enabled && ` • Lembrete ativo`}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -478,6 +612,22 @@ Digite "ajuda" para ver comandos disponíveis.`
                   <p className="text-sm text-gray-600">{owner.phone_e164}</p>
                   {owner.email && (
                     <p className="text-sm text-gray-500">{owner.email}</p>
+                  )}
+                  {owner.closing_time && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Clock className="w-3 h-3 text-purple-500" />
+                      <p className="text-xs text-purple-600">
+                        Fecha às {owner.closing_time}
+                      </p>
+                    </div>
+                  )}
+                  {owner.manager_phone_e164 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <UserCheck className="w-3 h-3 text-blue-500" />
+                      <p className="text-xs text-blue-600">
+                        Gerente: {owner.manager_phone_e164}
+                      </p>
+                    </div>
                   )}
                   <div className="flex items-center justify-between mt-3">
                     <span className={`text-xs px-2 py-1 rounded-full ${
