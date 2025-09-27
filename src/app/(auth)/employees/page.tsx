@@ -18,9 +18,23 @@ export default function EmployeesPage() {
   const { owner } = useAuth()
 
   useEffect(() => {
-    if (owner?.id) {
-      fetchEmployees()
+    const loadEmployees = async () => {
+      if (!owner?.id) return
+      
+      setLoading(true)
+      setError(null)
+      try {
+        const data = await api.getEmployees(owner.id)
+        setEmployees(data || [])
+      } catch (error) {
+        console.error('Error fetching employees:', error)
+        setError('Erro ao carregar funcionários')
+      } finally {
+        setLoading(false)
+      }
     }
+    
+    loadEmployees()
   }, [owner])
 
   const fetchEmployees = async () => {

@@ -35,9 +35,27 @@ export default function AppointmentsPage() {
   const [notes, setNotes] = useState('')
 
   useEffect(() => {
-    if (owner?.id) {
-      fetchAppointments()
+    const loadAppointments = async () => {
+      if (!owner?.id) return
+      
+      setLoading(true)
+      try {
+        // Get appointments for next 30 days
+        const today = new Date().toISOString().split('T')[0]
+        const futureDate = new Date()
+        futureDate.setDate(futureDate.getDate() + 30)
+        const future = futureDate.toISOString().split('T')[0]
+        
+        const data = await api.getAppointments(owner.id, today, future)
+        setAppointments(data)
+      } catch (error) {
+        console.error('Error fetching appointments:', error)
+      } finally {
+        setLoading(false)
+      }
     }
+    
+    loadAppointments()
   }, [owner])
 
   const fetchAppointments = async () => {
@@ -325,7 +343,7 @@ export default function AppointmentsPage() {
           <div className="p-12 text-center text-gray-500">
             <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p>Nenhum compromisso agendado</p>
-            <p className="text-sm mt-1">Clique em "Novo Compromisso" para adicionar</p>
+            <p className="text-sm mt-1">Clique em &quot;Novo Compromisso&quot; para adicionar</p>
           </div>
         )}
       </Card>

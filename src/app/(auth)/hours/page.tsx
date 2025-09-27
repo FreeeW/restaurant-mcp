@@ -19,9 +19,45 @@ export default function HoursPage() {
   })
 
   useEffect(() => {
-    if (owner?.id) {
-      fetchShifts()
+    const loadShifts = async () => {
+      if (!owner?.id) return
+      
+      setLoading(true)
+      try {
+        // Get week range
+        const startOfWeek = new Date(selectedDate)
+        startOfWeek.setDate(selectedDate.getDate() - selectedDate.getDay())
+        const endOfWeek = new Date(startOfWeek)
+        endOfWeek.setDate(startOfWeek.getDate() + 6)
+        
+        const startStr = startOfWeek.toISOString().split('T')[0]
+        const endStr = endOfWeek.toISOString().split('T')[0]
+        
+        // Fetch shifts data
+        const data = await api.getShifts(owner.id, startStr, endStr)
+        
+        if (data) {
+          setShifts(data)
+          
+          // Calculate summary
+          const totalHours = data.reduce((sum: number, item: any) => sum + (item.hours || 0), 0)
+          const totalCost = data.reduce((sum: number, item: any) => sum + (item.total_pay || 0), 0)
+          const employeeCount = new Set(data.map((item: any) => item.employee_code)).size
+          
+          setSummary({
+            totalHours,
+            totalCost,
+            employeeCount
+          })
+        }
+      } catch (error) {
+        console.error('Error fetching shifts:', error)
+      } finally {
+        setLoading(false)
+      }
     }
+    
+    loadShifts()
   }, [owner, selectedDate])
 
   const fetchShifts = async () => {

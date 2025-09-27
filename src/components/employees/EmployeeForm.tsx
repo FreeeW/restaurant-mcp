@@ -173,7 +173,7 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
               placeholder="5511999999999"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Número para registro de ponto via WhatsApp (enviar "cheguei" e "sai")
+              Número para registro de ponto via WhatsApp (enviar &quot;cheguei&quot; e &quot;sai&quot;)
             </p>
           </div>
           
