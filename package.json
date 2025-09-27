@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "next build && tsc",
+    "build": "next build",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev:mcp": "dotenv -e .env -- npx tsx src/index.ts",
     "dev": "next dev",
@@ -28,6 +28,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
     "recharts": "^2.10.3",
     "tailwind-merge": "^2.2.0",
     "zod": "^3.22.4"

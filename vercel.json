@@ -1,9 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "npm run build && ls -la dist/",
-  "functions": {
-    "api/**/*.{js,ts}": {
-      "includeFiles": "dist/**"
-    }
-  }
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "framework": "nextjs"
 }

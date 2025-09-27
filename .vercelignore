@@ -1,0 +1,21 @@
+# Ignore onboarding dashboard - it's a separate project
+onboarding-dashboard/
+
+# Ignore development files
+.git/
+.vscode/
+*.md
+.env
+.env.local
+
+# Ignore MCP server files
+src/index.ts
+src/db.ts
+src/validators.ts
+api/
+
+# Ignore Supabase functions
+supabase/
+
+# Ignore dist folder
+dist/
