@@ -40,6 +40,49 @@ async function isManagerResponse(phone: string): Promise<boolean> {
   return !!data;
 }
 
+// Check if this is an employee trying to check in/out
+async function isEmployeeMessage(phone: string): Promise<{ isEmployee: boolean; mode?: string }> {
+  if (!SUPABASE_URL || !SERVICE_ROLE) return { isEmployee: false };
+  
+  const supabase = createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  
+  // Check if phone belongs to an active employee
+  const { data } = await supabase
+    .from("employees")
+    .select("id, owner_id, owners!inner(employee_check_mode)")
+    .eq("phone_e164", phone)
+    .eq("active", true)
+    .single();
+  
+  if (!data) return { isEmployee: false };
+  
+  // Check if WhatsApp is enabled for this owner
+  const mode = data.owners?.employee_check_mode;
+  
+  // Only allow WhatsApp if mode is 'whatsapp' or 'both'
+  if (mode === 'form') {
+    return { isEmployee: false };
+  }
+  
+  return { isEmployee: true, mode };
+}
+
+// Check if message looks like a time tracking command
+function isTimeTrackingCommand(text: string): boolean {
+  const normalized = text.toLowerCase().trim();
+  
+  // Check for check-in/out commands
+  const timeCommands = [
+    '1', '2',
+    'cheguei', 'sai', 'saí', 'saida', 'saída',
+    'entrada', 'in', 'out', 'e', 's'
+  ];
+  
+  return timeCommands.includes(normalized);
+}
+
 // Process sales input from manager
 async function processSalesInput(phone: string, text: string): Promise<string> {
   const PROCESS_SALES_URL = `${SUPABASE_URL}/functions/v1/process-sales-input`;
@@ -65,6 +108,34 @@ async function processSalesInput(phone: string, text: string): Promise<string> {
   } catch (error) {
     console.error("Error processing sales input:", error);
     return "Erro ao registrar vendas. Por favor, tente novamente.";
+  }
+}
+
+// Process employee check-in/out
+async function processEmployeeCheck(phone: string, text: string): Promise<string> {
+  const EMPLOYEE_CHECK_URL = `${SUPABASE_URL}/functions/v1/process-employee-check`;
+  
+  try {
+    const response = await fetch(EMPLOYEE_CHECK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SERVICE_ROLE}`
+      },
+      body: JSON.stringify({
+        phone_e164: phone,
+        message_text: text,
+        timestamp: new Date().toISOString()
+      })
+    });
+    
+    const result = await response.json();
+    
+    // Return the message from the edge function
+    return result.message || "Ponto registrado";
+  } catch (error) {
+    console.error("Error processing employee check:", error);
+    return "❌ Erro ao registrar ponto. Tente novamente.";
   }
 }
 
@@ -98,10 +169,13 @@ serve(async (req) => {
     if (!items.length) return json({ ok: true, ignored: true });
     
     for (const it of items) {
+      console.log(`[WA-WEBHOOK] Processing message from ${it.from}: "${it.text}"`);
+      
       // First check if this is a manager responding to closing reminder
       const isManager = await isManagerResponse(it.from);
       
       if (isManager) {
+        console.log(`[WA-WEBHOOK] Identified as manager response`);
         // Process as sales input, not as bot conversation
         await processSalesInput(it.from, it.text);
         
@@ -116,6 +190,47 @@ serve(async (req) => {
         });
         
         continue; // Skip normal bot processing
+      }
+      
+      // Check if this is an employee trying to check in/out
+      // Only check if message looks like a time tracking command
+      if (isTimeTrackingCommand(it.text)) {
+        const employeeCheck = await isEmployeeMessage(it.from);
+        
+        if (employeeCheck.isEmployee) {
+          console.log(`[WA-WEBHOOK] Identified as employee time tracking (mode: ${employeeCheck.mode})`);
+          
+          // Process as employee check-in/out
+          const reply = await processEmployeeCheck(it.from, it.text);
+          
+          // Send the response
+          if (reply) {
+            await sendText(it.from, reply);
+          }
+          
+          // Log the interaction
+          await insertBotLog({
+            owner_id: null, // Could be fetched from employee if needed
+            from_e164: it.from,
+            direction: "in",
+            message: it.text,
+            intent: "employee_check",
+            payload: { message_id: it.messageId }
+          });
+          
+          if (reply) {
+            await insertBotLog({
+              owner_id: null,
+              from_e164: it.from,
+              direction: "out",
+              message: reply,
+              intent: "employee_check_response",
+              payload: {}
+            });
+          }
+          
+          continue; // Skip normal bot processing
+        }
       }
       
       // Normal bot flow for owners

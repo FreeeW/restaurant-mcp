@@ -1,7 +1,7 @@
 // Employee List component
 'use client'
 
-import { Edit, Trash2, UserCheck, UserX } from 'lucide-react'
+import { Edit, Trash2, UserCheck, UserX, MessageSquare, Clock } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Employee } from '@/lib/mock-data'
 
@@ -27,10 +27,16 @@ export default function EmployeeList({ employees, onEdit }: EmployeeListProps) {
                 Cargo
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Contrato
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Valor/Hora
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Horas/Mês
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Ponto
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
@@ -64,14 +70,40 @@ export default function EmployeeList({ employees, onEdit }: EmployeeListProps) {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm font-medium text-gray-900">
-                    R$ {employee.hourlyRate.toFixed(2)}
+                  <span className="text-xs text-gray-600 uppercase">
+                    {employee.contractType === 'clt' ? 'CLT' : 
+                     employee.contractType === 'daily' ? 'Diarista' : 'Horista'}
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">
+                      R$ {employee.hourlyRate.toFixed(2)}
+                    </span>
+                    {employee.contractType === 'clt' && employee.monthlySalary && (
+                      <p className="text-xs text-gray-500">
+                        Mensal: R$ {employee.monthlySalary.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="text-sm text-gray-600">
                     {employee.hoursThisMonth}h
                   </span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {employee.phoneWhatsApp ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <MessageSquare className="w-3 h-3" />
+                      WhatsApp
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                      <Clock className="w-3 h-3" />
+                      Manual
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {employee.active ? (

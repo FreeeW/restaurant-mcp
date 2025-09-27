@@ -2,7 +2,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Phone, MessageSquare, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
@@ -21,9 +21,28 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
     role: employee?.role || '',
     hourlyRate: employee?.hourlyRate || 0,
     phone: employee?.phone || '',
+    phoneWhatsApp: employee?.phoneWhatsApp || '',
     email: employee?.email || '',
+    contractType: employee?.contractType || 'hourly' as 'hourly' | 'clt' | 'daily',
+    monthlySalary: employee?.monthlySalary || 0,
     active: employee?.active ?? true
   })
+  
+  const formatWhatsApp = (value: string) => {
+    // Remove all non-digits
+    const digits = value.replace(/\D/g, '')
+    
+    // Keep only digits, starting with 55
+    if (!digits.startsWith('55')) {
+      return '55' + digits
+    }
+    return digits.slice(0, 13) // 5511999999999 = 13 digits
+  }
+  
+  const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatWhatsApp(e.target.value)
+    setFormData({ ...formData, phoneWhatsApp: formatted })
+  }
   
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,8 +51,8 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-md">
-        <div className="flex items-center justify-between p-6 border-b">
+      <Card className="w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
           <h2 className="text-lg font-semibold">
             {employee ? 'Editar Funcionário' : 'Novo Funcionário'}
           </h2>
@@ -61,6 +80,24 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tipo de Contrato
+              </label>
+              <select
+                value={formData.contractType}
+                onChange={(e) => setFormData({ ...formData, contractType: e.target.value as any })}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              >
+                <option value="hourly">Horista</option>
+                <option value="clt">CLT</option>
+                <option value="daily">Diarista</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <DollarSign className="w-3 h-3 inline mr-1" />
                 Valor/Hora
               </label>
               <Input
@@ -72,6 +109,22 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
                 required
               />
             </div>
+            
+            {formData.contractType === 'clt' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <DollarSign className="w-3 h-3 inline mr-1" />
+                  Salário Mensal
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formData.monthlySalary}
+                  onChange={(e) => setFormData({ ...formData, monthlySalary: parseFloat(e.target.value) })}
+                  placeholder="3000.00"
+                />
+              </div>
+            )}
           </div>
           
           <div>
@@ -99,6 +152,7 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
+              <Phone className="w-3 h-3 inline mr-1" />
               Telefone
             </label>
             <Input
@@ -106,6 +160,21 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               placeholder="(11) 99999-9999"
             />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              <MessageSquare className="w-3 h-3 inline mr-1" />
+              WhatsApp (para registro de ponto)
+            </label>
+            <Input
+              value={formData.phoneWhatsApp}
+              onChange={handleWhatsAppChange}
+              placeholder="5511999999999"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Número para registro de ponto via WhatsApp (enviar "cheguei" e "sai")
+            </p>
           </div>
           
           <div>

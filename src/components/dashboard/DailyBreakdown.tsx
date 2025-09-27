@@ -1,309 +1,215 @@
-// Daily Breakdown component with expandable details
+// Daily Breakdown component with real data from Supabase
 'use client'
 
-import { useState } from 'react'
-import { DollarSign, Package, Users, TrendingUp, AlertTriangle, ChevronDown, ChevronUp, Clock, User, Truck } from 'lucide-react'
-import { Card, CardHeader, CardContent } from '@/components/ui/Card'
-import { mockDailyKPIs, generateDailyHours, mockSuppliers } from '@/lib/mock-data'
+import { useEffect, useState } from 'react'
+import { Card } from '@/components/ui/Card'
+import { DollarSign, Users, Package, TrendingUp, AlertCircle, Loader2 } from 'lucide-react'
+import { api } from '@/services/api'
 
 interface DailyBreakdownProps {
   date: Date
+  ownerId: string
 }
 
-export default function DailyBreakdown({ date }: DailyBreakdownProps) {
-  const [expandedSection, setExpandedSection] = useState<'food' | 'labour' | null>(null)
-  const dateStr = date.toISOString().split('T')[0]
-  const kpi = mockDailyKPIs[dateStr]
-  const hoursData = generateDailyHours(date)
+export default function DailyBreakdown({ date, ownerId }: DailyBreakdownProps) {
+  const [data, setData] = useState<any>(null)
+  const [laborData, setLaborData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
   
-  // Mock data for suppliers deliveries (in real app, this would come from DB)
-  const mockDeliveries = [
-    {
-      supplier: mockSuppliers[0].name,
-      amount: kpi ? kpi.foodCost * 0.4 : 0,
-      invoice: 'NF-2024-' + Math.floor(Math.random() * 1000),
-      items: ['Carnes', 'Aves', 'Peixes']
-    },
-    {
-      supplier: mockSuppliers[2].name,
-      amount: kpi ? kpi.foodCost * 0.25 : 0,
-      invoice: 'NF-2024-' + Math.floor(Math.random() * 1000),
-      items: ['Verduras', 'Legumes', 'Frutas']
-    },
-    {
-      supplier: mockSuppliers[4].name,
-      amount: kpi ? kpi.foodCost * 0.15 : 0,
-      invoice: 'NF-2024-' + Math.floor(Math.random() * 1000),
-      items: ['Pães', 'Bolos']
-    },
-    {
-      supplier: 'Outros Fornecedores',
-      amount: kpi ? kpi.foodCost * 0.2 : 0,
-      invoice: '-',
-      items: ['Diversos']
+  useEffect(() => {
+    if (!ownerId) return
+    
+    const fetchData = async () => {
+      setLoading(true)
+      try {
+        const dateStr = date.toISOString().split('T')[0]
+        
+        // Fetch daily KPI and labor data
+        const [kpiData, laborDetails] = await Promise.all([
+          api.getDailyKPI(ownerId, dateStr),
+          api.getDailyLabor(ownerId, dateStr)
+        ])
+        
+        setData(kpiData)
+        setLaborData(laborDetails || [])
+      } catch (error) {
+        console.error('Error fetching daily breakdown:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-  ]
+    
+    fetchData()
+  }, [date, ownerId])
+  
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    })
+  }
   
   const formatDate = (date: Date) => {
-    const options: Intl.DateTimeFormatOptions = { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    }
-    return date.toLocaleDateString('pt-BR', options)
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    })
   }
-  
-  const toggleSection = (section: 'food' | 'labour') => {
-    setExpandedSection(expandedSection === section ? null : section)
-  }
-  
-  if (!kpi) {
+
+  if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <h3 className="text-lg font-semibold">Detalhes do Dia</h3>
-          <p className="text-sm text-gray-600">{formatDate(date)}</p>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-gray-500">
-            <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-            <p>Sem dados para este dia</p>
-          </div>
-        </CardContent>
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
       </Card>
     )
   }
   
-  const metrics = [
-    {
-      label: 'Vendas Brutas',
-      value: `R$ ${kpi.sales.toLocaleString('pt-BR')}`,
-      icon: DollarSign,
-      color: 'text-green-600',
-      expandable: false
-    },
-    {
-      label: 'Custo de Mercadoria (CMV)',
-      value: `R$ ${kpi.foodCost.toLocaleString('pt-BR')}`,
-      percent: `${kpi.foodPercent}%`,
-      icon: Package,
-      color: kpi.foodPercent > 35 ? 'text-red-600' : 
-             kpi.foodPercent > 30 ? 'text-yellow-600' : 'text-green-600',
-      expandable: true,
-      expandKey: 'food' as const
-    },
-    {
-      label: 'Custo de Mão de Obra',
-      value: `R$ ${kpi.labourCost.toLocaleString('pt-BR')}`,
-      percent: `${kpi.labourPercent}%`,
-      icon: Users,
-      color: kpi.labourPercent > 20 ? 'text-red-600' : 
-             kpi.labourPercent > 15 ? 'text-yellow-600' : 'text-green-600',
-      expandable: true,
-      expandKey: 'labour' as const
-    }
-  ]
-  
-  const profit = kpi.sales - kpi.foodCost - kpi.labourCost
-  const profitMargin = Math.round((profit / kpi.sales) * 100)
+  const hasData = data && data.sales > 0
   
   return (
-    <Card>
-      <CardHeader>
-        <h3 className="text-lg font-semibold">Detalhes do Dia</h3>
-        <p className="text-sm text-gray-600">{formatDate(date)}</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Metrics */}
-        {metrics.map((metric, index) => {
-          const Icon = metric.icon
-          const isExpanded = metric.expandKey && expandedSection === metric.expandKey
+    <Card className="p-6">
+      <h3 className="text-lg font-semibold mb-4">
+        Resumo do Dia
+      </h3>
+      <p className="text-sm text-gray-600 mb-4">
+        {formatDate(date)}
+      </p>
+      
+      {hasData ? (
+        <>
+          {/* Revenue Section */}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-600" />
+                <span className="font-medium">Receita</span>
+              </div>
+              <span className="text-xl font-bold text-green-600">
+                {formatCurrency(data.sales)}
+              </span>
+            </div>
+            <div className="text-sm text-gray-600">
+              {data.orders > 0 && (
+                <>
+                  <p>{data.orders} pedidos</p>
+                  <p>Ticket médio: {formatCurrency(data.average_ticket)}</p>
+                </>
+              )}
+            </div>
+          </div>
           
-          return (
-            <div key={index}>
-              <div 
-                className={`flex items-center justify-between py-3 border-b ${
-                  metric.expandable ? 'cursor-pointer hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors' : ''
-                }`}
-                onClick={() => metric.expandKey && toggleSection(metric.expandKey)}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className={`w-5 h-5 ${metric.color}`} />
-                  <div>
-                    <p className="text-sm text-gray-600 flex items-center gap-1">
-                      {metric.label}
-                      {metric.expandable && (
-                        <span className="text-xs text-blue-600">(clique para detalhes)</span>
-                      )}
-                    </p>
-                    <p className="font-semibold">{metric.value}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {metric.percent && (
-                    <span className={`text-lg font-bold ${metric.color}`}>
-                      {metric.percent}
+          {/* Costs Section */}
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-orange-600" />
+                <span className="text-sm">CMV</span>
+              </div>
+              <div className="text-right">
+                <span className="font-medium">{formatCurrency(data.food_cost)}</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  {data.food_cost_percentage.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-blue-600" />
+                <span className="text-sm">Mão de Obra</span>
+              </div>
+              <div className="text-right">
+                <span className="font-medium">{formatCurrency(data.labor_cost)}</span>
+                <span className="text-xs text-gray-500 ml-2">
+                  {data.labor_cost_percentage.toFixed(1)}%
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Profit Section */}
+          <div className="pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-600" />
+                <span className="font-medium">Lucro Bruto</span>
+              </div>
+              <div className="text-right">
+                <p className="text-xl font-bold text-emerald-600">
+                  {formatCurrency(data.profit)}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {data.profit_margin.toFixed(1)}% margem
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Labor Details */}
+          {laborData.length > 0 && (
+            <div className="mt-6 pt-4 border-t">
+              <h4 className="text-sm font-medium mb-3">Funcionários do Dia</h4>
+              <div className="space-y-2">
+                {laborData.slice(0, 5).map((item, index) => (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span className="text-gray-600">
+                      {item.payload?.code || 'N/A'}
                     </span>
-                  )}
-                  {metric.expandable && (
-                    isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />
-                  )}
+                    <span className="text-gray-900">
+                      {item.payload?.hours ? `${item.payload.hours}h` : '-'}
+                    </span>
+                  </div>
+                ))}
+                {laborData.length > 5 && (
+                  <p className="text-xs text-gray-500 text-center pt-2">
+                    +{laborData.length - 5} funcionários
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Alerts */}
+          {data.food_cost_percentage > 35 && (
+            <div className="mt-4 p-3 bg-red-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-red-900">CMV Alto</p>
+                  <p className="text-red-700">
+                    Custo acima de 35% afeta a lucratividade
+                  </p>
                 </div>
               </div>
-              
-              {/* Expanded Content - Food Cost Details */}
-              {metric.expandKey === 'food' && isExpanded && (
-                <div className="mt-3 pl-8 space-y-2 animate-in slide-in-from-top-1">
-                  <p className="text-xs font-medium text-gray-700 mb-2">Fornecedores do dia:</p>
-                  {mockDeliveries.map((delivery, idx) => (
-                    <div key={idx} className="flex items-start justify-between p-2 bg-gray-50 rounded text-sm">
-                      <div className="flex items-start gap-2">
-                        <Truck className="w-4 h-4 text-gray-500 mt-0.5" />
-                        <div>
-                          <p className="font-medium text-gray-800">{delivery.supplier}</p>
-                          <p className="text-xs text-gray-600">
-                            {delivery.items.join(', ')}
-                          </p>
-                          {delivery.invoice !== '-' && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              NF: {delivery.invoice}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <p className="font-medium text-gray-900">
-                        R$ {delivery.amount.toFixed(2)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              {/* Expanded Content - Labour Cost Details */}
-              {metric.expandKey === 'labour' && isExpanded && (
-                <div className="mt-3 pl-8 space-y-2 animate-in slide-in-from-top-1">
-                  <p className="text-xs font-medium text-gray-700 mb-2">
-                    Funcionários ({hoursData.employees.length} trabalharam):
-                  </p>
-                  {hoursData.employees.slice(0, 5).map((emp) => (
-                    <div key={emp.id} className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-gray-500" />
-                        <div>
-                          <p className="font-medium text-gray-800">{emp.name}</p>
-                          <p className="text-xs text-gray-600">{emp.code}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-600">
-                          <Clock className="w-3 h-3 inline mr-1" />
-                          {emp.hours}h × R$ {emp.hourlyRate.toFixed(2)}
-                        </p>
-                        <p className="font-medium text-gray-900">
-                          R$ {emp.total.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {hoursData.employees.length > 5 && (
-                    <p className="text-xs text-gray-500 text-center pt-1">
-                      +{hoursData.employees.length - 5} funcionários...
-                    </p>
-                  )}
-                  <div className="pt-2 mt-2 border-t border-gray-200">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total de horas:</span>
-                      <span className="font-medium">{hoursData.totalHours}h</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Custo total:</span>
-                      <span className="font-medium">R$ {hoursData.totalCost.toFixed(2)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
-          )
-        })}
-        
-        {/* Profit Summary */}
-        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">Lucro Bruto</span>
-            <TrendingUp className="w-4 h-4 text-gray-400" />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">
-            R$ {profit.toLocaleString('pt-BR')}
-          </p>
-          <p className="text-sm text-gray-600 mt-1">
-            Margem: {profitMargin}%
-          </p>
-        </div>
-        
-        {/* Additional Stats */}
-        {kpi.orders && (
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">{kpi.orders}</p>
-              <p className="text-xs text-gray-600">Pedidos</p>
-            </div>
-            <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <p className="text-2xl font-bold text-purple-600">
-                R$ {kpi.averageTicket}
-              </p>
-              <p className="text-xs text-gray-600">Ticket Médio</p>
-            </div>
-          </div>
-        )}
-        
-        {/* Performance Indicators */}
-        <div className="mt-4 space-y-2">
-          <div className="text-sm">
-            <div className="flex justify-between mb-1">
-              <span className="text-gray-600">Performance CMV</span>
-              <span className={
-                kpi.foodPercent <= 30 ? 'text-green-600' : 
-                kpi.foodPercent <= 35 ? 'text-yellow-600' : 'text-red-600'
-              }>
-                {kpi.foodPercent <= 30 ? 'Excelente' : 
-                 kpi.foodPercent <= 35 ? 'Atenção' : 'Crítico'}
-              </span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full ${
-                  kpi.foodPercent <= 30 ? 'bg-green-500' : 
-                  kpi.foodPercent <= 35 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${Math.min(kpi.foodPercent * 2, 100)}%` }}
-              />
-            </div>
-          </div>
+          )}
           
-          <div className="text-sm">
-            <div className="flex justify-between mb-1">
-              <span className="text-gray-600">Performance Mão de Obra</span>
-              <span className={
-                kpi.labourPercent <= 15 ? 'text-green-600' : 
-                kpi.labourPercent <= 20 ? 'text-yellow-600' : 'text-red-600'
-              }>
-                {kpi.labourPercent <= 15 ? 'Excelente' : 
-                 kpi.labourPercent <= 20 ? 'Atenção' : 'Crítico'}
-              </span>
+          {data.labor_cost_percentage > 30 && (
+            <div className="mt-3 p-3 bg-yellow-50 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-yellow-900">Mão de Obra Elevada</p>
+                  <p className="text-yellow-700">
+                    Considere otimizar a escala de funcionários
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className={`h-2 rounded-full ${
-                  kpi.labourPercent <= 15 ? 'bg-green-500' : 
-                  kpi.labourPercent <= 20 ? 'bg-yellow-500' : 'bg-red-500'
-                }`}
-                style={{ width: `${Math.min(kpi.labourPercent * 3, 100)}%` }}
-              />
-            </div>
-          </div>
+          )}
+        </>
+      ) : (
+        <div className="text-center py-12">
+          <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">Sem dados para este dia</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Registre as vendas do dia para ver o resumo
+          </p>
         </div>
-      </CardContent>
+      )}
     </Card>
   )
 }

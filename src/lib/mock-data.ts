@@ -6,6 +6,12 @@ export const mockRestaurant = {
   email: 'demo@restaurant.com',
   cnpj: '12.345.678/0001-90',
   address: 'Rua Exemplo, 123 - São Paulo, SP',
+  managerPhone: '5511999998888', // Manager WhatsApp for daily sales reminders
+  closingTime: '21:30', // Time to send daily reminder
+  closingReminderEnabled: true,
+  employeeCheckMode: 'both' as 'form' | 'whatsapp' | 'both', // How employees register time
+  employeeReminderEnabled: false,
+  employeeReminderTime: '07:30',
   settings: {
     timezone: 'America/Sao_Paulo',
     currency: 'BRL',
@@ -23,8 +29,11 @@ export interface Employee {
   active: boolean
   hoursThisMonth: number
   phone?: string
+  phoneWhatsApp?: string // WhatsApp for time tracking
   email?: string
   role?: string
+  contractType?: 'hourly' | 'clt' | 'daily'
+  monthlySalary?: number
 }
 
 export const mockEmployees: Employee[] = [
@@ -35,7 +44,9 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 15.50,
     active: true,
     hoursThisMonth: 168,
-    role: 'Garçom'
+    role: 'Garçom',
+    phoneWhatsApp: '5511999991111',
+    contractType: 'hourly'
   },
   {
     id: '2', 
@@ -44,7 +55,10 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 18.00,
     active: true,
     hoursThisMonth: 176,
-    role: 'Cozinheira'
+    role: 'Cozinheira',
+    phoneWhatsApp: '5511999992222',
+    contractType: 'clt',
+    monthlySalary: 3200
   },
   {
     id: '3',
@@ -53,7 +67,8 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 15.50,
     active: true,
     hoursThisMonth: 120,
-    role: 'Garçom'
+    role: 'Garçom',
+    contractType: 'hourly'
   },
   {
     id: '4',
@@ -62,7 +77,8 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 12.00,
     active: true,
     hoursThisMonth: 160,
-    role: 'Auxiliar'
+    role: 'Auxiliar',
+    contractType: 'hourly'
   },
   {
     id: '5',
@@ -71,7 +87,10 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 20.00,
     active: true,
     hoursThisMonth: 168,
-    role: 'Chef'
+    role: 'Chef',
+    phoneWhatsApp: '5511999995555',
+    contractType: 'clt',
+    monthlySalary: 4500
   },
   {
     id: '6',
@@ -80,7 +99,8 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 14.00,
     active: true,
     hoursThisMonth: 176,
-    role: 'Caixa'
+    role: 'Caixa',
+    contractType: 'hourly'
   },
   {
     id: '7',
@@ -89,7 +109,8 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 12.00,
     active: false,
     hoursThisMonth: 0,
-    role: 'Limpeza'
+    role: 'Limpeza',
+    contractType: 'daily'
   },
   {
     id: '8',
@@ -98,190 +119,176 @@ export const mockEmployees: Employee[] = [
     hourlyRate: 15.50,
     active: true,
     hoursThisMonth: 140,
-    role: 'Garçom'
+    role: 'Garçom',
+    contractType: 'hourly'
   }
 ]
 
-export interface DailyKPI {
+export interface Appointment {
+  id: string
+  title: string
   date: string
-  sales: number
-  foodCost: number
-  labourCost: number
-  foodPercent: number
-  labourPercent: number
-  orders?: number
-  averageTicket?: number
+  time?: string
+  category: 'maintenance' | 'delivery' | 'meeting' | 'inspection' | 'other'
+  notes?: string
+  completed: boolean
 }
 
-// Generate mock daily KPIs for the current month
-const generateDailyKPIs = (): Record<string, DailyKPI> => {
-  const kpis: Record<string, DailyKPI> = {}
-  const currentDate = new Date()
-  const currentMonth = currentDate.getMonth()
-  const currentYear = currentDate.getFullYear()
-  
-  for (let day = 1; day <= 31; day++) {
-    const date = new Date(currentYear, currentMonth, day)
-    if (date.getMonth() !== currentMonth) break
-    
-    const dateStr = date.toISOString().split('T')[0]
-    const baseSales = 2500 + Math.random() * 2000
-    const foodCost = baseSales * (0.28 + Math.random() * 0.07)
-    const labourCost = baseSales * (0.13 + Math.random() * 0.05)
-    
-    kpis[dateStr] = {
-      date: dateStr,
-      sales: Math.round(baseSales),
-      foodCost: Math.round(foodCost),
-      labourCost: Math.round(labourCost),
-      foodPercent: Math.round((foodCost / baseSales) * 100),
-      labourPercent: Math.round((labourCost / baseSales) * 100),
-      orders: Math.floor(20 + Math.random() * 30),
-      averageTicket: Math.round(baseSales / (20 + Math.random() * 30))
-    }
+export const mockAppointments: Appointment[] = [
+  {
+    id: '1',
+    title: 'Manutenção do Ar Condicionado',
+    date: '2024-01-15',
+    time: '14:00',
+    category: 'maintenance',
+    notes: 'Verificação mensal',
+    completed: false
+  },
+  {
+    id: '2',
+    title: 'Entrega de Verduras',
+    date: '2024-01-12',
+    time: '08:00',
+    category: 'delivery',
+    notes: 'Fornecedor: Hortifruti Central',
+    completed: false
+  },
+  {
+    id: '3',
+    title: 'Reunião com Fornecedores',
+    date: '2024-01-18',
+    time: '16:00',
+    category: 'meeting',
+    notes: 'Negociar preços para 2024',
+    completed: false
+  },
+  {
+    id: '4',
+    title: 'Vistoria Vigilância Sanitária',
+    date: '2024-01-20',
+    category: 'inspection',
+    notes: 'Preparar documentação',
+    completed: false
   }
-  
-  return kpis
+]
+
+export interface License {
+  id: string
+  title: string
+  number?: string
+  issuingAuthority?: string
+  issueDate?: string
+  expiryDate: string
+  category: 'sanitario' | 'bombeiros' | 'funcionamento' | 'ambiental' | 'outros'
+  status: 'valid' | 'expiring' | 'expired'
+  notes?: string
 }
 
-export const mockDailyKPIs = generateDailyKPIs()
+export const mockLicenses: License[] = [
+  {
+    id: '1',
+    title: 'Alvará de Funcionamento',
+    number: 'AF2023/45678',
+    issuingAuthority: 'Prefeitura Municipal',
+    issueDate: '2023-01-15',
+    expiryDate: '2024-01-15',
+    category: 'funcionamento',
+    status: 'expiring',
+    notes: 'Renovar até 30 dias antes do vencimento'
+  },
+  {
+    id: '2',
+    title: 'AVCB - Bombeiros',
+    number: 'AVCB/2023/12345',
+    issuingAuthority: 'Corpo de Bombeiros',
+    issueDate: '2023-06-01',
+    expiryDate: '2024-06-01',
+    category: 'bombeiros',
+    status: 'valid'
+  },
+  {
+    id: '3',
+    title: 'Licença Sanitária',
+    number: 'LS/2023/98765',
+    issuingAuthority: 'Vigilância Sanitária',
+    issueDate: '2023-03-20',
+    expiryDate: '2024-03-20',
+    category: 'sanitario',
+    status: 'valid'
+  },
+  {
+    id: '4',
+    title: 'Licença Ambiental',
+    number: 'LA/2023/55555',
+    issuingAuthority: 'CETESB',
+    issueDate: '2023-08-10',
+    expiryDate: '2025-08-10',
+    category: 'ambiental',
+    status: 'valid'
+  }
+]
 
+// Suppliers
 export interface Supplier {
   id: string
   name: string
   cnpj?: string
-  contact?: string
+  category: 'food' | 'beverages' | 'cleaning' | 'equipment' | 'services' | 'other'
   phone?: string
   email?: string
-  address?: string
-  notes?: string
-  invoices: Invoice[]
-}
-
-export interface Invoice {
-  id: string
-  number: string
-  date: string
-  dueDate?: string
-  amount: number
-  status: 'pending' | 'paid' | 'overdue'
-  notes?: string
+  contact?: string
+  active: boolean
 }
 
 export const mockSuppliers: Supplier[] = [
   {
     id: '1',
-    name: 'Distribuidora ABC',
+    name: 'Hortifruti Central',
     cnpj: '12.345.678/0001-90',
-    contact: 'Carlos Silva',
+    category: 'food',
     phone: '(11) 3333-4444',
-    email: 'vendas@abc.com.br',
-    notes: 'Entrega às terças e quintas. Pedido mínimo R$ 500',
-    invoices: [
-      {
-        id: 'inv1',
-        number: 'NF-2024-001',
-        date: '2024-01-10',
-        dueDate: '2024-01-25',
-        amount: 2500.00,
-        status: 'paid'
-      },
-      {
-        id: 'inv2',
-        number: 'NF-2024-015',
-        date: '2024-01-15',
-        dueDate: '2024-01-30',
-        amount: 1800.00,
-        status: 'pending'
-      }
-    ]
+    email: 'vendas@hortifruti.com',
+    contact: 'João',
+    active: true
   },
   {
     id: '2',
-    name: 'Açougue Premium',
+    name: 'Bebidas Express',
     cnpj: '98.765.432/0001-10',
-    contact: 'João Martins',
+    category: 'beverages',
     phone: '(11) 2222-3333',
-    email: 'pedidos@acouguepremium.com',
-    notes: 'Melhor qualidade de carnes. Entrega diária',
-    invoices: [
-      {
-        id: 'inv3',
-        number: 'NF-2024-100',
-        date: '2024-01-12',
-        dueDate: '2024-01-27',
-        amount: 3200.00,
-        status: 'paid'
-      }
-    ]
+    email: 'pedidos@bebidas.com',
+    contact: 'Maria',
+    active: true
   },
   {
     id: '3',
-    name: 'Hortifruti Verde Vida',
-    cnpj: '45.678.912/0001-23',
-    contact: 'Maria Oliveira',
+    name: 'Carnes Premium',
+    cnpj: '45.678.901/0001-23',
+    category: 'food',
     phone: '(11) 4444-5555',
-    notes: 'Produtos orgânicos disponíveis sob encomenda',
-    invoices: [
-      {
-        id: 'inv4',
-        number: 'NF-2024-050',
-        date: '2024-01-08',
-        amount: 850.00,
-        status: 'overdue'
-      }
-    ]
+    email: 'vendas@carnespremium.com',
+    contact: 'Pedro',
+    active: true
   },
   {
     id: '4',
-    name: 'Bebidas Express',
-    cnpj: '78.912.345/0001-56',
-    contact: 'Roberto Costa',
+    name: 'Limpeza Total',
+    cnpj: '56.789.012/0001-34',
+    category: 'cleaning',
     phone: '(11) 5555-6666',
-    email: 'vendas@bebidasexpress.com',
-    invoices: []
-  },
-  {
-    id: '5',
-    name: 'Padaria Artesanal',
-    contact: 'Ana Paula',
-    phone: '(11) 6666-7777',
-    notes: 'Pães frescos diariamente às 6h',
-    invoices: [
-      {
-        id: 'inv5',
-        number: 'NF-2024-200',
-        date: '2024-01-18',
-        amount: 420.00,
-        status: 'pending'
-      }
-    ]
+    active: false
   }
 ]
 
-export interface DailyHours {
-  date: string
-  employees: {
-    id: string
-    code: string
-    name: string
-    hours: number
-    hourlyRate: number
-    total: number
-  }[]
-  totalHours: number
-  totalCost: number
-}
-
-// Fixed Costs Mock Data
+// Fixed Costs
 export interface FixedCost {
   id: string
   name: string
+  category: 'rent' | 'utilities' | 'insurance' | 'tax' | 'salary' | 'other'
   amount: number
-  frequency: 'monthly' | 'annual'
-  category: string
-  dueDay?: number  // For monthly costs
-  dueMonth?: string  // For annual costs
+  frequency: 'monthly' | 'quarterly' | 'annual'
+  dueDay?: number
   active: boolean
 }
 
@@ -289,203 +296,190 @@ export const mockFixedCosts: FixedCost[] = [
   {
     id: '1',
     name: 'Aluguel',
+    category: 'rent',
     amount: 8500,
     frequency: 'monthly',
-    category: 'Aluguel',
     dueDay: 5,
     active: true
   },
   {
     id: '2',
     name: 'Energia Elétrica',
+    category: 'utilities',
     amount: 2200,
     frequency: 'monthly',
-    category: 'Utilidades',
-    dueDay: 15,
+    dueDay: 10,
     active: true
   },
   {
     id: '3',
-    name: 'Água e Esgoto',
-    amount: 850,
+    name: 'Água',
+    category: 'utilities',
+    amount: 800,
     frequency: 'monthly',
-    category: 'Utilidades',
     dueDay: 10,
     active: true
   },
   {
     id: '4',
     name: 'Internet/Telefone',
-    amount: 450,
+    category: 'utilities',
+    amount: 350,
     frequency: 'monthly',
-    category: 'Utilidades',
-    dueDay: 20,
+    dueDay: 15,
     active: true
   },
   {
     id: '5',
+    name: 'Seguro',
+    category: 'insurance',
+    amount: 1200,
+    frequency: 'monthly',
+    active: true
+  },
+  {
+    id: '6',
     name: 'IPTU',
+    category: 'tax',
     amount: 12000,
     frequency: 'annual',
-    category: 'Impostos',
-    dueMonth: 'Janeiro',
-    active: true
-  },
-  {
-    id: '6',
-    name: 'Seguro do Estabelecimento',
-    amount: 4800,
-    frequency: 'annual',
-    category: 'Seguros',
-    dueMonth: 'Março',
-    active: true
-  },
-  {
-    id: '7',
-    name: 'Sistema de Gestão',
-    amount: 299,
-    frequency: 'monthly',
-    category: 'Operacional',
-    dueDay: 1,
-    active: true
-  },
-  {
-    id: '8',
-    name: 'Marketing Digital',
-    amount: 800,
-    frequency: 'monthly',
-    category: 'Marketing',
-    dueDay: 5,
     active: true
   }
 ]
 
-// Appointments Mock Data
-export interface Appointment {
-  id: string
-  title: string
+// Daily KPIs
+export interface DailyKPI {
   date: string
-  time: string
-  type: 'delivery' | 'maintenance' | 'meeting' | 'inspection' | 'event' | 'other'
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
-  person?: string
-  location?: string
-  notes?: string
+  sales: number
+  orders: number
+  averageTicket: number
+  foodCost: number
+  foodCostPercentage: number
+  laborCost: number
+  laborCostPercentage: number
+  profit: number
+  profitMargin: number
 }
 
-export const mockAppointments: Appointment[] = [
-  {
-    id: '1',
-    title: 'Entrega de Carnes - Açougue Premium',
-    date: new Date().toISOString().split('T')[0],
-    time: '06:30',
-    type: 'delivery',
-    status: 'confirmed',
-    person: 'João - Açougue Premium',
-    location: 'Recepção de mercadorias'
+export const mockDailyKPIs: Record<string, DailyKPI> = {
+  '2025-09-25': {
+    date: '2025-09-25',
+    sales: 4850.00,
+    orders: 42,
+    averageTicket: 115.48,
+    foodCost: 1455.00,
+    foodCostPercentage: 30.0,
+    laborCost: 970.00,
+    laborCostPercentage: 20.0,
+    profit: 2425.00,
+    profitMargin: 50.0
   },
-  {
-    id: '2',
-    title: 'Manutenção Ar Condicionado',
-    date: new Date().toISOString().split('T')[0],
-    time: '14:00',
-    type: 'maintenance',
-    status: 'confirmed',
-    person: 'TechAr Climatização',
-    notes: 'Manutenção preventiva mensal'
+  '2025-09-24': {
+    date: '2025-09-24',
+    sales: 5200.00,
+    orders: 48,
+    averageTicket: 108.33,
+    foodCost: 1560.00,
+    foodCostPercentage: 30.0,
+    laborCost: 1040.00,
+    laborCostPercentage: 20.0,
+    profit: 2600.00,
+    profitMargin: 50.0
   },
-  {
-    id: '3',
-    title: 'Reunião com Fornecedor de Bebidas',
-    date: new Date(Date.now() + 86400000).toISOString().split('T')[0], // Tomorrow
-    time: '10:00',
-    type: 'meeting',
-    status: 'pending',
-    person: 'Carlos - Bebidas Express',
-    location: 'Escritório'
-  },
-  {
-    id: '4',
-    title: 'Inspeção Vigilância Sanitária',
-    date: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0], // Next week
-    time: '09:00',
-    type: 'inspection',
-    status: 'confirmed',
-    person: 'Vigilância Sanitária Municipal',
-    notes: 'Inspeção de rotina anual'
-  },
-  {
-    id: '5',
-    title: 'Evento - Aniversário de 5 anos',
-    date: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0], // Next month
-    time: '19:00',
-    type: 'event',
-    status: 'confirmed',
-    location: 'Salão Principal',
-    notes: 'Preparar decoração especial e menu comemorativo'
-  },
-  {
-    id: '6',
-    title: 'Entrega de Hortifruti',
-    date: new Date(Date.now() - 86400000).toISOString().split('T')[0], // Yesterday
-    time: '07:00',
-    type: 'delivery',
-    status: 'completed',
-    person: 'Hortifruti Verde Vida'
-  },
-  {
-    id: '7',
-    title: 'Treinamento Equipe - Novos Pratos',
-    date: new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0], // In 3 days
-    time: '15:00',
-    type: 'meeting',
-    status: 'confirmed',
-    person: 'Chef Carlos',
-    location: 'Cozinha',
-    notes: 'Apresentação do novo cardápio de verão'
-  },
-  {
-    id: '8',
-    title: 'Dedetização',
-    date: new Date(Date.now() + 15 * 86400000).toISOString().split('T')[0], // In 15 days
-    time: '22:00',
-    type: 'maintenance',
-    status: 'pending',
-    person: 'CleanPest Controle de Pragas',
-    notes: 'Realizar após fechamento do restaurante'
+  '2025-09-23': {
+    date: '2025-09-23',
+    sales: 3900.00,
+    orders: 35,
+    averageTicket: 111.43,
+    foodCost: 1170.00,
+    foodCostPercentage: 30.0,
+    laborCost: 780.00,
+    laborCostPercentage: 20.0,
+    profit: 1950.00,
+    profitMargin: 50.0
   }
-]
+}
 
-export const generateDailyHours = (date: Date): DailyHours => {
+// Generate daily hours for calendar
+export function generateDailyHours(date: Date): any {
   const dateStr = date.toISOString().split('T')[0]
   const dayOfWeek = date.getDay()
-  
-  // Different staffing for weekends
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-  const activeEmployees = mockEmployees.filter(e => e.active)
   
-  // Random selection of employees working that day
-  const workingToday = activeEmployees.filter(() => Math.random() > 0.3)
+  // Generate random but consistent data based on date
+  const seed = date.getDate() + date.getMonth() * 100
+  const randomFactor = (seed % 10) / 10
   
-  const employees = workingToday.map(emp => {
-    const hours = isWeekend ? 8 + Math.random() * 4 : 6 + Math.random() * 4
-    return {
-      id: emp.id,
-      code: emp.code,
-      name: emp.name,
-      hours: Math.round(hours * 10) / 10,
-      hourlyRate: emp.hourlyRate,
-      total: Math.round(hours * emp.hourlyRate * 100) / 100
-    }
-  })
+  const baseHours = isWeekend ? 12 : 10
+  const totalHours = baseHours + randomFactor * 4
+  const totalCost = totalHours * 60 // Average R$15/hour * 4 employees
   
-  const totalHours = employees.reduce((sum, e) => sum + e.hours, 0)
-  const totalCost = employees.reduce((sum, e) => sum + e.total, 0)
+  const employees = [
+    { code: 'GAR1', name: 'João Silva', hours: isWeekend ? 9 : 8 + randomFactor },
+    { code: 'COZ1', name: 'Maria Santos', hours: isWeekend ? 10 : 8.5 + randomFactor },
+    { code: 'GAR2', name: 'Pedro Oliveira', hours: isWeekend ? 8 : 7 + randomFactor },
+    { code: 'AUX1', name: 'Ana Costa', hours: isWeekend ? 9 : 8 + randomFactor }
+  ]
   
   return {
     date: dateStr,
-    employees,
     totalHours: Math.round(totalHours * 10) / 10,
-    totalCost: Math.round(totalCost * 100) / 100
+    totalCost: Math.round(totalCost),
+    employees: employees.filter(e => e.hours > 0)
   }
 }
+
+// Products/Items for inventory
+export interface Product {
+  id: string
+  name: string
+  category: string
+  unit: string
+  currentStock: number
+  minStock: number
+  maxStock: number
+  cost: number
+}
+
+export const mockProducts: Product[] = [
+  {
+    id: '1',
+    name: 'Arroz',
+    category: 'Grãos',
+    unit: 'kg',
+    currentStock: 50,
+    minStock: 20,
+    maxStock: 100,
+    cost: 4.50
+  },
+  {
+    id: '2',
+    name: 'Feijão',
+    category: 'Grãos',
+    unit: 'kg',
+    currentStock: 30,
+    minStock: 15,
+    maxStock: 60,
+    cost: 7.00
+  },
+  {
+    id: '3',
+    name: 'Óleo',
+    category: 'Óleos',
+    unit: 'litro',
+    currentStock: 20,
+    minStock: 10,
+    maxStock: 40,
+    cost: 8.50
+  },
+  {
+    id: '4',
+    name: 'Tomate',
+    category: 'Verduras',
+    unit: 'kg',
+    currentStock: 15,
+    minStock: 10,
+    maxStock: 30,
+    cost: 5.00
+  }
+]

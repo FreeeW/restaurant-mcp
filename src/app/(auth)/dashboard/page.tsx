@@ -1,7 +1,7 @@
-// Dashboard main page with multiple views
+// Dashboard main page with real data from Supabase
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import CalendarView from '@/components/dashboard/CalendarView'
 import WeekView from '@/components/dashboard/WeekView'
 import MonthView from '@/components/dashboard/MonthView'
@@ -10,13 +10,15 @@ import WeekdaysView from '@/components/dashboard/WeekdaysView'
 import HolidayView from '@/components/dashboard/HolidayView'
 import KPICards from '@/components/dashboard/KPICards'
 import DailyBreakdown from '@/components/dashboard/DailyBreakdown'
-import { Calendar, CalendarDays, CalendarRange, Sun, Briefcase, PartyPopper } from 'lucide-react'
+import { Calendar, CalendarDays, CalendarRange, Sun, Briefcase, PartyPopper, Loader2 } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
 
 type ViewType = 'calendar' | 'week' | 'month' | 'weekend' | 'weekdays' | 'holidays'
 
 export default function DashboardPage() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [currentView, setCurrentView] = useState<ViewType>('calendar')
+  const { owner, loading } = useAuth()
   
   const viewOptions = [
     { id: 'calendar' as ViewType, label: 'Calendário', icon: Calendar },
@@ -45,13 +47,35 @@ export default function DashboardPage() {
         return <CalendarView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
     }
   }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mx-auto mb-4" />
+          <p className="text-gray-600">Carregando dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!owner) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-600">Erro ao carregar dados. Por favor, faça login novamente.</p>
+      </div>
+    )
+  }
   
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Visão geral do seu restaurante</p>
+        <p className="text-gray-600">
+          {owner.business_name ? `${owner.business_name} - ` : ''}
+          Visão geral do seu restaurante
+        </p>
       </div>
       
       {/* View Selector */}
@@ -77,8 +101,8 @@ export default function DashboardPage() {
         })}
       </div>
       
-      {/* KPI Cards */}
-      <KPICards date={selectedDate} />
+      {/* KPI Cards - Now with owner ID */}
+      <KPICards date={selectedDate} ownerId={owner.id} />
       
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -89,7 +113,7 @@ export default function DashboardPage() {
         
         {/* Daily Breakdown - 1 column */}
         <div>
-          <DailyBreakdown date={selectedDate} />
+          <DailyBreakdown date={selectedDate} ownerId={owner.id} />
         </div>
       </div>
     </div>
