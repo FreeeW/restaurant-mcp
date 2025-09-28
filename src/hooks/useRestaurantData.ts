@@ -3,17 +3,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { mockRestaurant, mockEmployees, Employee } from '@/lib/mock-data'
+import { mockRestaurants, mockEmployees, Employee } from '@/lib/mock-data'
 
 // This will be replaced with Supabase client
 // import { supabase } from '@/lib/supabase'
 
 export function useRestaurantData() {
-  const [restaurant, setRestaurant] = useState(mockRestaurant)
+  const [restaurant, setRestaurant] = useState(mockRestaurants[0])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const updateRestaurantSettings = async (settings: typeof mockRestaurant) => {
+  const updateRestaurantSettings = async (settings: typeof mockRestaurants[0]) => {
     setLoading(true)
     try {
       // TODO: Replace with Supabase update
