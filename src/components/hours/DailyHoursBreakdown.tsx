@@ -57,7 +57,7 @@ export default function DailyHoursBreakdown({ date }: DailyHoursBreakdownProps) 
               Nenhum funcionário registrado neste dia
             </p>
           ) : (
-            hoursData.employees.map((emp) => (
+            hoursData.employees.map((emp: any) => (
               <div key={emp.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">

@@ -8,7 +8,7 @@ export const mockRestaurants = [
     name: 'Restaurante do João',
     phone: '+5511999999999',
     email: 'joao@restaurante.com',
-    cnpj: '12.345.678/0001-90',
+  cnpj: '12.345.678/0001-90',
     address: 'Rua das Flores, 123 - São Paulo, SP'
   }
 ]
@@ -44,7 +44,7 @@ export const mockEmployees: Employee[] = [
     active: true
   },
   {
-    id: '2',
+    id: '2', 
     code: 'COZ1',
     name: 'Maria Santos',
     phone: '(11) 88888-8888',
