@@ -1,7 +1,7 @@
 // Enhanced KPI Card showing both actual purchases and rolling CMV
 import React from 'react'
 import { TrendingUp, TrendingDown, Package, Info } from 'lucide-react'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+// Tooltip component not available - using simple title attribute instead
 
 interface CMVDisplayProps {
   dailySales: number
@@ -48,19 +48,9 @@ export function CMVDisplay({
           <div className="flex items-center gap-2">
             <Package className="w-5 h-5" />
             <span className="font-medium">CMV</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="w-4 h-4 opacity-60" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="text-sm">
-                    Média móvel de {rollingPeriodDays} dias<br/>
-                    Mais precisa que o cálculo diário
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <span title={`Média móvel de ${rollingPeriodDays} dias - Mais precisa que o cálculo diário`}>
+              <Info className="w-4 h-4 opacity-60" />
+            </span>
           </div>
           <div className="text-right">
             <p className="text-2xl font-bold">{rollingCMV.toFixed(1)}%</p>
