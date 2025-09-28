@@ -1,23 +1,27 @@
 // Week View component
 'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
-import { mockDailyKPIs } from '@/lib/mock-data'
+import { api } from '@/services/api'
 
 interface WeekViewProps {
   selectedDate: Date
   onDateSelect: (date: Date) => void
+  ownerId: string
 }
 
-export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) {
+export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekViewProps) {
   const [currentWeek, setCurrentWeek] = useState(() => {
     const date = new Date()
     const day = date.getDay()
     const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Adjust to Monday
     return new Date(date.setDate(diff))
   })
+  const [weekData, setWeekData] = useState<Record<string, any>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const getWeekDays = (startDate: Date) => {
     const days = []
@@ -31,6 +35,38 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
   
   const weekDays = getWeekDays(currentWeek)
   
+  // Fetch week data when week changes
+  useEffect(() => {
+    if (!ownerId) return
+    
+    const fetchWeekData = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const weekData: Record<string, any> = {}
+        
+        // Fetch data for each day in the week
+        const promises = weekDays.map(date => {
+          const dateStr = date.toISOString().split('T')[0]
+          return api.getDailyKPI(ownerId, dateStr).then(kpi => {
+            if (kpi) weekData[dateStr] = kpi
+          })
+        })
+        
+        await Promise.all(promises)
+        setWeekData(weekData)
+      } catch (err) {
+        console.error('Error fetching week data:', err)
+        setError('Erro ao carregar dados da semana')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchWeekData()
+  }, [currentWeek, ownerId])
+  
   const getWeekStats = () => {
     let totalSales = 0
     let totalFoodCost = 0
@@ -39,7 +75,7 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
     
     weekDays.forEach(date => {
       const dateStr = date.toISOString().split('T')[0]
-      const kpi = mockDailyKPIs[dateStr]
+      const kpi = weekData[dateStr]
       if (kpi) {
         totalSales += kpi.sales
         totalFoodCost += kpi.foodCost
@@ -80,6 +116,32 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
   }
   
   const dayNames = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
+  
+  if (loading) {
+    return (
+      <Card className="p-4">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      </Card>
+    )
+  }
+  
+  if (error) {
+    return (
+      <Card className="p-4">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-2 text-sm underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </Card>
+    )
+  }
   
   return (
     <div className="space-y-4">
@@ -131,7 +193,7 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
         <div className="grid grid-cols-7 gap-2">
           {weekDays.map((date, index) => {
             const dateStr = date.toISOString().split('T')[0]
-            const kpi = mockDailyKPIs[dateStr]
+            const kpi = weekData[dateStr]
             const isSelected = selectedDate.toDateString() === date.toDateString()
             const isToday = new Date().toDateString() === date.toDateString()
             
@@ -180,13 +242,13 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
         <div className="space-y-3">
           {weekDays.map((date, index) => {
             const dateStr = date.toISOString().split('T')[0]
-            const kpi = mockDailyKPIs[dateStr]
+            const kpi = weekData[dateStr]
             
             // Get previous week same day for comparison
             const prevWeekDate = new Date(date)
             prevWeekDate.setDate(date.getDate() - 7)
             const prevDateStr = prevWeekDate.toISOString().split('T')[0]
-            const prevKpi = mockDailyKPIs[prevDateStr]
+            const prevKpi = weekData[prevDateStr]
             
             const salesTrend = kpi && prevKpi ? ((kpi.sales - prevKpi.sales) / prevKpi.sales) * 100 : 0
             

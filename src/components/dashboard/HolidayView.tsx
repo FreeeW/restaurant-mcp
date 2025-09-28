@@ -1,14 +1,15 @@
 // Holiday View component
 'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Calendar, Star, Building } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Calendar, Star, Building, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
-import { mockDailyKPIs } from '@/lib/mock-data'
+import { api } from '@/services/api'
 
 interface HolidayViewProps {
   selectedDate: Date
   onDateSelect: (date: Date) => void
+  ownerId: string
 }
 
 // Brazilian holidays for 2024/2025
@@ -37,8 +38,43 @@ const holidays = [
   { date: '2025-12-25', name: 'Natal', type: 'national' }
 ]
 
-export default function HolidayView({ selectedDate, onDateSelect }: HolidayViewProps) {
+export default function HolidayView({ selectedDate, onDateSelect, ownerId }: HolidayViewProps) {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
+  const [holidayData, setHolidayData] = useState<Record<string, any>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // Fetch holiday data when year changes
+  useEffect(() => {
+    if (!ownerId) return
+    
+    const fetchHolidayData = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const yearHolidays = getHolidaysForYear(currentYear)
+        const holidayData: Record<string, any> = {}
+        
+        // Fetch data for all holidays in the year
+        const promises = yearHolidays.map(holiday => {
+          return api.getDailyKPI(ownerId, holiday.date).then(kpi => {
+            if (kpi) holidayData[holiday.date] = kpi
+          })
+        })
+        
+        await Promise.all(promises)
+        setHolidayData(holidayData)
+      } catch (err) {
+        console.error('Error fetching holiday data:', err)
+        setError('Erro ao carregar dados dos feriados')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchHolidayData()
+  }, [currentYear, ownerId])
   
   const getHolidaysForYear = (year: number) => {
     return holidays.filter(h => h.date.startsWith(year.toString()))
@@ -53,7 +89,7 @@ export default function HolidayView({ selectedDate, onDateSelect }: HolidayViewP
       if (!byMonth[month]) byMonth[month] = []
       
       const holidayDate = new Date(holiday.date)
-      const kpi = mockDailyKPIs[holiday.date]
+        const kpi = holidayData[holiday.date]
       
       byMonth[month].push({
         ...holiday,
@@ -99,6 +135,32 @@ export default function HolidayView({ selectedDate, onDateSelect }: HolidayViewP
   const holidaysByMonth = getHolidaysByMonth(currentYear)
   const nationalHolidays = Object.values(holidaysByMonth).flat().filter(h => h.type === 'national')
   const municipalHolidays = Object.values(holidaysByMonth).flat().filter(h => h.type === 'municipal')
+  
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      </Card>
+    )
+  }
+  
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-2 text-sm underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </Card>
+    )
+  }
   
   return (
     <div className="space-y-6">

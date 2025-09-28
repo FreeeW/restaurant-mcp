@@ -30,21 +30,23 @@ export default function DashboardPage() {
   ]
   
   const renderView = () => {
+    if (!owner?.id) return null
+    
     switch (currentView) {
       case 'calendar':
-        return <CalendarView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <CalendarView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       case 'week':
-        return <WeekView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <WeekView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       case 'month':
-        return <MonthView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <MonthView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       case 'weekend':
-        return <WeekendView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <WeekendView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       case 'weekdays':
-        return <WeekdaysView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <WeekdaysView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       case 'holidays':
-        return <HolidayView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <HolidayView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
       default:
-        return <CalendarView onDateSelect={setSelectedDate} selectedDate={selectedDate} />
+        return <CalendarView onDateSelect={setSelectedDate} selectedDate={selectedDate} ownerId={owner.id} />
     }
   }
 

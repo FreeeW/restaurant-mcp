@@ -1,18 +1,22 @@
 // Calendar View component
 'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
-import { mockDailyKPIs } from '@/lib/mock-data'
+import { api } from '@/services/api'
 
 interface CalendarViewProps {
   selectedDate: Date
   onDateSelect: (date: Date) => void
+  ownerId: string
 }
 
-export default function CalendarView({ selectedDate, onDateSelect }: CalendarViewProps) {
+export default function CalendarView({ selectedDate, onDateSelect, ownerId }: CalendarViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [monthData, setMonthData] = useState<Record<string, any>>({})
   
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -35,6 +39,45 @@ export default function CalendarView({ selectedDate, onDateSelect }: CalendarVie
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
   }
   
+  // Fetch month data when month changes
+  useEffect(() => {
+    if (!ownerId) return
+    
+    const fetchMonthData = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const year = currentMonth.getFullYear()
+        const month = currentMonth.getMonth()
+        const daysInMonth = getDaysInMonth(currentMonth)
+        const monthData: Record<string, any> = {}
+        
+        // Fetch data for each day in the month
+        const promises = []
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, month, day)
+          const dateStr = date.toISOString().split('T')[0]
+          promises.push(
+            api.getDailyKPI(ownerId, dateStr).then(kpi => {
+              if (kpi) monthData[dateStr] = kpi
+            })
+          )
+        }
+        
+        await Promise.all(promises)
+        setMonthData(monthData)
+      } catch (err) {
+        console.error('Error fetching month data:', err)
+        setError('Erro ao carregar dados do mês')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchMonthData()
+  }, [currentMonth, ownerId])
+  
   const renderCalendar = () => {
     const daysInMonth = getDaysInMonth(currentMonth)
     const firstDay = getFirstDayOfMonth(currentMonth)
@@ -49,7 +92,7 @@ export default function CalendarView({ selectedDate, onDateSelect }: CalendarVie
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
       const dateStr = date.toISOString().split('T')[0]
-      const kpi = mockDailyKPIs[dateStr]
+      const kpi = monthData[dateStr]
       const isSelected = selectedDate.toDateString() === date.toDateString()
       const isToday = new Date().toDateString() === date.toDateString()
       
@@ -95,6 +138,32 @@ export default function CalendarView({ selectedDate, onDateSelect }: CalendarVie
     }
     
     return days
+  }
+  
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      </Card>
+    )
+  }
+  
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-2 text-sm underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </Card>
+    )
   }
   
   return (

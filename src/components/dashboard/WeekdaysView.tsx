@@ -1,23 +1,71 @@
 // Weekdays View component - Shows only Monday to Friday
 'use client'
 
-import { useState } from 'react'
-import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
-import { mockDailyKPIs } from '@/lib/mock-data'
+import { api } from '@/services/api'
 
 interface WeekdaysViewProps {
   selectedDate: Date
   onDateSelect: (date: Date) => void
+  ownerId: string
 }
 
-export default function WeekdaysView({ selectedDate, onDateSelect }: WeekdaysViewProps) {
+export default function WeekdaysView({ selectedDate, onDateSelect, ownerId }: WeekdaysViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [weekdayData, setWeekdayData] = useState<Record<string, any>>({})
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ]
+  
+  // Fetch weekday data when month changes
+  useEffect(() => {
+    if (!ownerId) return
+    
+    const fetchWeekdayData = async () => {
+      setLoading(true)
+      setError(null)
+      
+      try {
+        const year = currentMonth.getFullYear()
+        const month = currentMonth.getMonth()
+        const daysInMonth = new Date(year, month + 1, 0).getDate()
+        const weekdayData: Record<string, any> = {}
+        
+        // Fetch data for weekdays only (Monday to Friday)
+        const promises = []
+        for (let day = 1; day <= daysInMonth; day++) {
+          const date = new Date(year, month, day)
+          const dayOfWeek = date.getDay()
+          
+          // Only fetch data for weekdays (Monday = 1 to Friday = 5)
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            const dateStr = date.toISOString().split('T')[0]
+            promises.push(
+              api.getDailyKPI(ownerId, dateStr).then(kpi => {
+                if (kpi) weekdayData[dateStr] = kpi
+              })
+            )
+          }
+        }
+        
+        await Promise.all(promises)
+        setWeekdayData(weekdayData)
+      } catch (err) {
+        console.error('Error fetching weekday data:', err)
+        setError('Erro ao carregar dados dos dias úteis')
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    fetchWeekdayData()
+  }, [currentMonth, ownerId])
   
   const getWeekdaysInMonth = (date: Date) => {
     const year = date.getFullYear()
@@ -32,7 +80,7 @@ export default function WeekdaysView({ selectedDate, onDateSelect }: WeekdaysVie
       // Only include weekdays (Monday = 1 to Friday = 5)
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
         const dateStr = currentDate.toISOString().split('T')[0]
-        const kpi = mockDailyKPIs[dateStr]
+        const kpi = weekdayData[dateStr]
         
         weekdays.push({
           date: currentDate,
@@ -89,6 +137,32 @@ export default function WeekdaysView({ selectedDate, onDateSelect }: WeekdaysVie
   
   const weekdays = getWeekdaysInMonth(currentMonth)
   const groupedByWeek = groupWeekdaysByWeek(weekdays)
+  
+  if (loading) {
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        </div>
+      </Card>
+    )
+  }
+  
+  if (error) {
+    return (
+      <Card className="p-6">
+        <div className="text-center text-red-600">
+          <p>{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-2 text-sm underline"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </Card>
+    )
+  }
   
   return (
     <div className="space-y-6">
