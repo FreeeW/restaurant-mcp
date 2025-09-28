@@ -27,11 +27,6 @@ export default function SupplierList({ suppliers }: SupplierListProps) {
                 <ChevronRight className="w-5 h-5 text-gray-400" />
               </div>
               
-              {supplier.contact && (
-                <div className="text-sm text-gray-600 mb-2">
-                  Contato: {supplier.contact}
-                </div>
-              )}
               
               <div className="space-y-2">
                 {supplier.phone && (
@@ -49,25 +44,6 @@ export default function SupplierList({ suppliers }: SupplierListProps) {
                 )}
               </div>
               
-              {supplier.invoices.length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <FileText className="w-4 h-4" />
-                      {supplier.invoices.length} Notas Fiscais
-                    </div>
-                    <div className="text-sm font-medium text-gray-900">
-                      R$ {supplier.invoices.reduce((sum, inv) => sum + inv.amount, 0).toLocaleString('pt-BR')}
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {supplier.notes && (
-                <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
-                  <p className="text-xs text-yellow-800">{supplier.notes}</p>
-                </div>
-              )}
             </div>
           </Link>
         </Card>
