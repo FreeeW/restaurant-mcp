@@ -121,8 +121,8 @@ export const api = {
   getDailyKPI: async (ownerId: string, date: string): Promise<DailyKPI | null> => {
     const { data, error } = await supabase
       .rpc('get_daily_kpi_on_date', {
-        owner_id: ownerId,
-        day: date
+        p_owner: ownerId,
+        p_day: date
       })
     
     if (error) {
@@ -134,16 +134,16 @@ export const api = {
     if (data) {
       return {
         date: date,
-        sales: data.sales || 0,
+        sales: data.net_sales || 0,
         orders: data.orders || 0,
         average_ticket: data.average_ticket || 0,
         food_cost: data.food_cost || 0,
-        food_cost_percentage: data.food_percentage || 0,
+        food_cost_percentage: (data.food_pct || 0) * 100,
         labor_cost: data.labour_cost || 0,
-        labor_cost_percentage: data.labour_percentage || 0,
-        profit: (data.sales || 0) - (data.food_cost || 0) - (data.labour_cost || 0),
-        profit_margin: data.sales > 0 
-          ? ((data.sales - data.food_cost - data.labour_cost) / data.sales) * 100 
+        labor_cost_percentage: (data.labour_pct || 0) * 100,
+        profit: (data.net_sales || 0) - (data.food_cost || 0) - (data.labour_cost || 0),
+        profit_margin: data.net_sales > 0 
+          ? ((data.net_sales - data.food_cost - data.labour_cost) / data.net_sales) * 100 
           : 0
       }
     }
@@ -318,9 +318,9 @@ export const api = {
   getOrders: async (ownerId: string, startDate: string, endDate: string) => {
     const { data, error } = await supabase
       .rpc('get_orders_range', {
-        owner_id: ownerId,
-        start: startDate,
-        end: endDate
+        p_owner: ownerId,
+        p_start: startDate,
+        p_end: endDate
       })
     
     if (error) {
@@ -335,9 +335,9 @@ export const api = {
   getNotes: async (ownerId: string, startDate: string, endDate: string) => {
     const { data, error } = await supabase
       .rpc('get_notes_range', {
-        owner_id: ownerId,
-        start: startDate,
-        end: endDate
+        p_owner: ownerId,
+        p_start: startDate,
+        p_end: endDate
       })
     
     if (error) {

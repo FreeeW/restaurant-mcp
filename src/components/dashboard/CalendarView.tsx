@@ -117,18 +117,18 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
               </div>
               <div className="flex gap-1">
                 <span className={`text-xs px-1 py-0.5 rounded ${
-                  kpi.foodCostPercentage > 35 ? 'bg-red-100 text-red-700' : 
-                  kpi.foodCostPercentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                  kpi.food_cost_percentage > 35 ? 'bg-red-100 text-red-700' : 
+                  kpi.food_cost_percentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
                   'bg-green-100 text-green-700'
                 }`}>
-                  {kpi.foodCostPercentage}%
+                  {kpi.food_cost_percentage.toFixed(1)}%
                 </span>
                 <span className={`text-xs px-1 py-0.5 rounded ${
-                  kpi.laborCostPercentage > 20 ? 'bg-red-100 text-red-700' : 
-                  kpi.laborCostPercentage > 15 ? 'bg-yellow-100 text-yellow-700' : 
+                  kpi.labor_cost_percentage > 30 ? 'bg-red-100 text-red-700' : 
+                  kpi.labor_cost_percentage > 25 ? 'bg-yellow-100 text-yellow-700' : 
                   'bg-green-100 text-green-700'
                 }`}>
-                  {kpi.laborCostPercentage}%
+                  {kpi.labor_cost_percentage.toFixed(1)}%
                 </span>
               </div>
             </div>
