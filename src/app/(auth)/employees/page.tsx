@@ -152,7 +152,7 @@ export default function EmployeesPage() {
         <EmployeeForm 
           employee={editingEmployee}
           onSave={handleSave}
-          onCancel={handleCancel}
+          onClose={handleCancel}
         />
       ) : (
         <EmployeeList 
