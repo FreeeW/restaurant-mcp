@@ -14,6 +14,8 @@ interface Owner {
   closing_time?: string
   closing_reminder_enabled?: boolean
   employee_check_mode?: string
+  employee_reminder_time?: string
+  employee_reminder_enabled?: boolean
   subscription_status?: string
 }
 

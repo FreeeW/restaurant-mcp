@@ -43,7 +43,7 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
       if (kpi) {
         totalSales += kpi.sales
         totalFoodCost += kpi.foodCost
-        totalLabourCost += kpi.labourCost
+        totalLabourCost += kpi.laborCost
         daysWithData++
       }
     })
@@ -157,11 +157,11 @@ export default function WeekView({ selectedDate, onDateSelect }: WeekViewProps) 
                     </p>
                     <div className="flex justify-center gap-1 mt-1">
                       <span className={`text-xs px-1 py-0.5 rounded ${
-                        kpi.foodPercent > 35 ? 'bg-red-100 text-red-700' : 
-                        kpi.foodPercent > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                        kpi.foodCostPercentage > 35 ? 'bg-red-100 text-red-700' : 
+                        kpi.foodCostPercentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
                         'bg-green-100 text-green-700'
                       }`}>
-                        {kpi.foodPercent}%
+                        {kpi.foodCostPercentage}%
                       </span>
                     </div>
                   </>

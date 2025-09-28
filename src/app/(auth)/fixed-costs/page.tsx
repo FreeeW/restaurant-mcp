@@ -177,7 +177,7 @@ export default function FixedCostsPage() {
                             R$ {cost.amount.toLocaleString('pt-BR')}
                           </p>
                           <p className="text-xs text-gray-500">
-                            Vence: {cost.dueMonth}
+                            Vence: {cost.dueDay || 'N/A'}
                           </p>
                         </div>
                         <div className="flex gap-1">

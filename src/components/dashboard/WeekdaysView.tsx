@@ -1,8 +1,8 @@
-// Weekdays View component - Shows only weekdays (Monday to Friday)
+// Weekdays View component - Shows only Monday to Friday
 'use client'
 
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Briefcase, TrendingUp, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { mockDailyKPIs } from '@/lib/mock-data'
 
@@ -19,28 +19,25 @@ export default function WeekdaysView({ selectedDate, onDateSelect }: WeekdaysVie
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ]
   
-  const dayNames = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta']
-  
-  const getWeekdaysInMonth = () => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    const lastDay = new Date(year, month + 1, 0).getDate()
+  const getWeekdaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
     const weekdays = []
     
-    for (let day = 1; day <= lastDay; day++) {
-      const date = new Date(year, month, day)
-      const dayOfWeek = date.getDay()
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = new Date(year, month, day)
+      const dayOfWeek = currentDate.getDay()
       
-      // Monday (1) to Friday (5)
+      // Only include weekdays (Monday = 1 to Friday = 5)
       if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-        const dateStr = date.toISOString().split('T')[0]
+        const dateStr = currentDate.toISOString().split('T')[0]
         const kpi = mockDailyKPIs[dateStr]
+        
         weekdays.push({
-          date,
-          dateStr,
-          kpi,
+          date: currentDate,
           dayOfWeek,
-          dayName: dayNames[dayOfWeek - 1]
+          kpi
         })
       }
     }
@@ -48,265 +45,193 @@ export default function WeekdaysView({ selectedDate, onDateSelect }: WeekdaysVie
     return weekdays
   }
   
-  const weekdays = getWeekdaysInMonth()
-  
-  // Group by weeks
-  const groupedByWeek = []
-  let currentWeek = []
-  let lastWeek = null
-  
-  weekdays.forEach(day => {
-    const weekOfMonth = Math.ceil(day.date.getDate() / 7)
+  const groupWeekdaysByWeek = (weekdays: any[]) => {
+    const weeks: any[][] = []
+    let currentWeek: any[] = []
     
-    if (lastWeek !== weekOfMonth) {
-      if (currentWeek.length > 0) {
-        groupedByWeek.push(currentWeek)
+    weekdays.forEach(day => {
+      if (currentWeek.length === 0 || day.dayOfWeek === 1) {
+        if (currentWeek.length > 0) {
+          weeks.push([...currentWeek])
+        }
+        currentWeek = [day]
+      } else {
+        currentWeek.push(day)
       }
-      currentWeek = []
-      lastWeek = weekOfMonth
+    })
+    
+    if (currentWeek.length > 0) {
+      weeks.push(currentWeek)
     }
-    currentWeek.push(day)
-  })
-  
-  if (currentWeek.length > 0) {
-    groupedByWeek.push(currentWeek)
+    
+    return weeks
   }
   
-  const getWeekdayStats = () => {
-    let totalSales = 0
-    const dayStats = {
-      monday: { total: 0, count: 0 },
-      tuesday: { total: 0, count: 0 },
-      wednesday: { total: 0, count: 0 },
-      thursday: { total: 0, count: 0 },
-      friday: { total: 0, count: 0 }
-    }
-    
-    weekdays.forEach(({ kpi, dayOfWeek }) => {
-      if (kpi) {
-        totalSales += kpi.sales
-        const dayKey = ['', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'][dayOfWeek]
-        if (dayKey) {
-          dayStats[dayKey as keyof typeof dayStats].total += kpi.sales
-          dayStats[dayKey as keyof typeof dayStats].count++
-        }
-      }
-    })
-    
-    // Find best performing weekday
-    let bestDay = { name: '', avg: 0 }
-    Object.entries(dayStats).forEach(([key, stats]) => {
-      const avg = stats.count > 0 ? stats.total / stats.count : 0
-      if (avg > bestDay.avg) {
-        bestDay = { 
-          name: key.charAt(0).toUpperCase() + key.slice(1), 
-          avg 
-        }
-      }
-    })
+  const goToPreviousMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))
+  }
+  
+  const goToNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))
+  }
+  
+  const getWeekStats = (week: any[]) => {
+    const totalSales = week.reduce((sum, day) => sum + (day.kpi?.sales || 0), 0)
+    const avgFoodPercent = week.reduce((sum, day) => sum + (day.kpi?.foodCostPercentage || 0), 0) / week.length
+    const avgLabourPercent = week.reduce((sum, day) => sum + (day.kpi?.laborCostPercentage || 0), 0) / week.length
     
     return {
       totalSales,
-      totalDays: weekdays.length,
-      avgDailySales: weekdays.length > 0 ? Math.round(totalSales / weekdays.filter(d => d.kpi).length) : 0,
-      dayStats,
-      bestDay
+      avgFoodPercent: Math.round(avgFoodPercent),
+      avgLabourPercent: Math.round(avgLabourPercent)
     }
   }
   
-  const stats = getWeekdayStats()
-  
-  const changeMonth = (direction: number) => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + direction, 1))
-  }
+  const weekdays = getWeekdaysInMonth(currentMonth)
+  const groupedByWeek = groupWeekdaysByWeek(weekdays)
   
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Dias Úteis - {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+          </h2>
+          <p className="text-sm text-gray-600">
+            {weekdays.length} dias úteis no mês
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={goToPreviousMonth}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            onClick={goToNextMonth}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+      
+      {/* Monthly Summary */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold">
-                Dias Úteis - {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-              </h2>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => changeMonth(-1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setCurrentMonth(new Date())}
-                className="px-3 py-1 text-sm rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                Este Mês
-              </button>
-              <button
-                onClick={() => changeMonth(1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
+          <h3 className="text-lg font-semibold">Resumo do Mês</h3>
         </CardHeader>
         <CardContent>
-          {/* Stats Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="p-3 bg-blue-50 rounded-lg">
-              <p className="text-xs text-gray-600 mb-1">Total Dias Úteis</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.totalDays}</p>
-            </div>
-            
-            <div className="p-3 bg-green-50 rounded-lg">
-              <p className="text-xs text-gray-600 mb-1">Vendas Total</p>
-              <p className="text-xl font-bold text-green-600">
-                R$ {stats.totalSales.toLocaleString('pt-BR')}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-green-50 rounded-lg">
+              <p className="text-sm text-gray-600">Vendas Totais</p>
+              <p className="text-2xl font-bold text-green-600">
+                R$ {weekdays.reduce((sum, day) => sum + (day.kpi?.sales || 0), 0).toLocaleString('pt-BR')}
               </p>
             </div>
-            
-            <div className="p-3 bg-purple-50 rounded-lg">
-              <p className="text-xs text-gray-600 mb-1">Média Diária</p>
-              <p className="text-xl font-bold text-purple-600">
-                R$ {stats.avgDailySales.toLocaleString('pt-BR')}
+            <div className="text-center p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-gray-600">CMV Médio</p>
+              <p className="text-2xl font-bold text-blue-600">
+                {weekdays.length > 0 
+                  ? Math.round(weekdays.reduce((sum, day) => sum + (day.kpi?.foodCostPercentage || 0), 0) / weekdays.length)
+                  : 0}%
               </p>
             </div>
-            
-            <div className="p-3 bg-yellow-50 rounded-lg">
-              <p className="text-xs text-gray-600 mb-1">Melhor Dia</p>
-              <p className="text-lg font-bold text-yellow-600">
-                {stats.bestDay.name}
+            <div className="text-center p-4 bg-purple-50 rounded-lg">
+              <p className="text-sm text-gray-600">M.O. Média</p>
+              <p className="text-2xl font-bold text-purple-600">
+                {weekdays.length > 0 
+                  ? Math.round(weekdays.reduce((sum, day) => sum + (day.kpi?.laborCostPercentage || 0), 0) / weekdays.length)
+                  : 0}%
               </p>
-              <p className="text-xs text-gray-500">
-                R$ {Math.round(stats.bestDay.avg).toLocaleString('pt-BR')}
-              </p>
-            </div>
-          </div>
-          
-          {/* Performance by Day of Week */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Desempenho por Dia da Semana</h3>
-            <div className="grid grid-cols-5 gap-2">
-              {dayNames.map((dayName, index) => {
-                const dayKey = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'][index]
-                const dayData = stats.dayStats[dayKey as keyof typeof stats.dayStats]
-                const avgSales = dayData.count > 0 ? dayData.total / dayData.count : 0
-                const maxAvg = Math.max(...Object.values(stats.dayStats).map(d => 
-                  d.count > 0 ? d.total / d.count : 0
-                ))
-                const heightPercent = maxAvg > 0 ? (avgSales / maxAvg) * 100 : 0
-                
-                return (
-                  <div key={index} className="text-center">
-                    <p className="text-xs font-medium text-gray-600 mb-2">{dayName}</p>
-                    <div className="h-24 flex flex-col justify-end mb-2">
-                      <div 
-                        className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600"
-                        style={{ height: `${heightPercent}%`, minHeight: '2px' }}
-                      />
-                    </div>
-                    <p className="text-xs font-bold text-gray-900">
-                      R$ {Math.round(avgSales).toLocaleString('pt-BR')}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {dayData.count} dias
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          
-          {/* Weeks Breakdown */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">Detalhamento por Semana</h3>
-            <div className="space-y-3">
-              {groupedByWeek.map((week, weekIndex) => {
-                const weekTotal = week.reduce((sum, day) => sum + (day.kpi?.sales || 0), 0)
-                const weekAvg = week.filter(d => d.kpi).length > 0 
-                  ? Math.round(weekTotal / week.filter(d => d.kpi).length)
-                  : 0
-                
-                return (
-                  <div key={weekIndex} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-sm font-medium text-gray-700">
-                        Semana {weekIndex + 1}
-                      </p>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-gray-900">
-                          Total: R$ {weekTotal.toLocaleString('pt-BR')}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Média: R$ {weekAvg.toLocaleString('pt-BR')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 2, 3, 4, 5].map(dayOfWeek => {
-                        const dayData = week.find(d => d.dayOfWeek === dayOfWeek)
-                        
-                        return (
-                          <button
-                            key={dayOfWeek}
-                            onClick={() => dayData && onDateSelect(dayData.date)}
-                            disabled={!dayData}
-                            className={`
-                              p-2 rounded-lg border transition-all
-                              ${!dayData 
-                                ? 'bg-gray-50 border-gray-200 cursor-not-allowed' 
-                                : selectedDate.toDateString() === dayData.date.toDateString()
-                                  ? 'bg-blue-100 border-blue-500'
-                                  : 'bg-white border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                              }
-                            `}
-                          >
-                            <p className="text-xs font-medium text-gray-600">
-                              {dayNames[dayOfWeek - 1]}
-                            </p>
-                            {dayData ? (
-                              <>
-                                <p className="text-xs text-gray-500">
-                                  {dayData.date.getDate()}/{dayData.date.getMonth() + 1}
-                                </p>
-                                {dayData.kpi ? (
-                                  <>
-                                    <p className="text-xs font-bold text-gray-900 mt-1">
-                                      R$ {(dayData.kpi.sales / 1000).toFixed(1)}k
-                                    </p>
-                                    <div className="mt-1">
-                                      <span className={`text-xs px-1 py-0.5 rounded ${
-                                        dayData.kpi.foodPercent > 35 ? 'bg-red-100 text-red-700' : 
-                                        dayData.kpi.foodPercent > 30 ? 'bg-yellow-100 text-yellow-700' : 
-                                        'bg-green-100 text-green-700'
-                                      }`}>
-                                        {dayData.kpi.foodPercent}%
-                                      </span>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <p className="text-xs text-gray-400 mt-1">-</p>
-                                )}
-                              </>
-                            ) : (
-                              <p className="text-xs text-gray-400 mt-1">-</p>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
             </div>
           </div>
         </CardContent>
       </Card>
+      
+      {/* Weeks */}
+      <div className="space-y-6">
+        {groupedByWeek.map((week, weekIndex) => {
+          const weekStats = getWeekStats(week)
+          const weekStart = week[0].date
+          const weekEnd = week[week.length - 1].date
+          
+          return (
+            <Card key={weekIndex}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">
+                    Semana {weekIndex + 1} - {weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} a {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                  </h3>
+                  <div className="flex items-center gap-4 text-sm text-gray-600">
+                    <span>Vendas: R$ {weekStats.totalSales.toLocaleString('pt-BR')}</span>
+                    <span>CMV: {weekStats.avgFoodPercent}%</span>
+                    <span>M.O: {weekStats.avgLabourPercent}%</span>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-5 gap-2">
+                  {[1, 2, 3, 4, 5].map(dayOfWeek => {
+                    const dayData = week.find(d => d.dayOfWeek === dayOfWeek)
+                    const isSelected = selectedDate.toDateString() === dayData?.date.toDateString()
+                    
+                    return (
+                      <button
+                        key={dayOfWeek}
+                        onClick={() => dayData && onDateSelect(dayData.date)}
+                        className={`
+                          p-3 rounded-lg border-2 transition-all text-center
+                          ${isSelected 
+                            ? 'border-emerald-500 bg-emerald-50' 
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }
+                          ${!dayData ? 'opacity-50 cursor-not-allowed' : ''}
+                        `}
+                        disabled={!dayData}
+                      >
+                        <p className="text-sm font-medium text-gray-900 mb-1">
+                          {['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][dayOfWeek - 1]}
+                        </p>
+                        
+                        {dayData ? (
+                          <>
+                            <p className="text-xs text-gray-500">
+                              {dayData.date.getDate()}/{dayData.date.getMonth() + 1}
+                            </p>
+                            {dayData.kpi ? (
+                              <>
+                                <p className="text-xs font-bold text-gray-900 mt-1">
+                                  R$ {(dayData.kpi.sales / 1000).toFixed(1)}k
+                                </p>
+                                <div className="mt-1">
+                                  <span className={`text-xs px-1 py-0.5 rounded ${
+                                    dayData.kpi.foodCostPercentage > 35 ? 'bg-red-100 text-red-700' : 
+                                    dayData.kpi.foodCostPercentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                                    'bg-green-100 text-green-700'
+                                  }`}>
+                                    {dayData.kpi.foodCostPercentage}%
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <p className="text-xs text-gray-400 mt-1">-</p>
+                            )}
+                          </>
+                        ) : (
+                          <p className="text-xs text-gray-400 mt-1">-</p>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
     </div>
   )
 }

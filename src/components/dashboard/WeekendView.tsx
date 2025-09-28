@@ -250,11 +250,11 @@ export default function WeekendView({ selectedDate, onDateSelect }: WeekendViewP
                               </p>
                               <div className="flex justify-center gap-1 mt-2">
                                 <span className={`text-xs px-1 py-0.5 rounded ${
-                                  weekend.saturday.kpi.foodPercent > 35 ? 'bg-red-100 text-red-700' : 
-                                  weekend.saturday.kpi.foodPercent > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                                  weekend.saturday.kpi.foodCostPercentage > 35 ? 'bg-red-100 text-red-700' : 
+                                  weekend.saturday.kpi.foodCostPercentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
                                   'bg-green-100 text-green-700'
                                 }`}>
-                                  CMV: {weekend.saturday.kpi.foodPercent}%
+                                  CMV: {weekend.saturday.kpi.foodCostPercentage}%
                                 </span>
                               </div>
                             </>
@@ -269,9 +269,9 @@ export default function WeekendView({ selectedDate, onDateSelect }: WeekendViewP
                       {/* Sunday */}
                       {weekend.sunday ? (
                         <button
-                          onClick={() => onDateSelect(weekend.sunday.date)}
+                          onClick={() => weekend.sunday && onDateSelect(weekend.sunday.date)}
                           className={`p-4 hover:bg-indigo-50 transition-colors ${
-                            selectedDate.toDateString() === weekend.sunday.date.toDateString() 
+                            weekend.sunday && selectedDate.toDateString() === weekend.sunday.date.toDateString() 
                               ? 'bg-indigo-100' : 'bg-white'
                           }`}
                         >
@@ -289,11 +289,11 @@ export default function WeekendView({ selectedDate, onDateSelect }: WeekendViewP
                               </p>
                               <div className="flex justify-center gap-1 mt-2">
                                 <span className={`text-xs px-1 py-0.5 rounded ${
-                                  weekend.sunday.kpi.foodPercent > 35 ? 'bg-red-100 text-red-700' : 
-                                  weekend.sunday.kpi.foodPercent > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                                  weekend.sunday.kpi.foodCostPercentage > 35 ? 'bg-red-100 text-red-700' : 
+                                  weekend.sunday.kpi.foodCostPercentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
                                   'bg-green-100 text-green-700'
                                 }`}>
-                                  CMV: {weekend.sunday.kpi.foodPercent}%
+                                  CMV: {weekend.sunday.kpi.foodCostPercentage}%
                                 </span>
                               </div>
                             </>

@@ -39,7 +39,7 @@ export default function MonthView({ selectedDate, onDateSelect }: MonthViewProps
       if (kpi) {
         totalSales += kpi.sales
         totalFoodCost += kpi.foodCost
-        totalLabourCost += kpi.labourCost
+        totalLabourCost += kpi.laborCost
         daysWithData++
         
         if (kpi.sales > bestDay.sales) {
