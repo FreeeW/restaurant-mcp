@@ -8,9 +8,10 @@ import { Employee } from '@/lib/mock-data'
 interface EmployeeListProps {
   employees: Employee[]
   onEdit: (employee: Employee) => void
+  onDelete: (id: string) => Promise<void>
 }
 
-export default function EmployeeList({ employees, onEdit }: EmployeeListProps) {
+export default function EmployeeList({ employees, onEdit, onDelete }: EmployeeListProps) {
   return (
     <Card>
       <div className="overflow-x-auto">
@@ -36,101 +37,115 @@ export default function EmployeeList({ employees, onEdit }: EmployeeListProps) {
                 Horas/Mês
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Ponto
+                Registro
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Ações
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {employees.map((employee) => (
-              <tr key={employee.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm font-medium text-gray-900">
-                    {employee.code}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {employee.name}
-                    </p>
-                    {employee.phone && (
-                      <p className="text-xs text-gray-500">{employee.phone}</p>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm text-gray-600">
-                    {employee.role || '-'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-xs text-gray-600 uppercase">
-                    {employee.contractType === 'clt' ? 'CLT' : 
-                     employee.contractType === 'daily' ? 'Diarista' : 'Horista'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div>
-                    <span className="text-sm font-medium text-gray-900">
-                      R$ {employee.hourlyRate.toFixed(2)}
-                    </span>
-                    {employee.contractType === 'clt' && employee.monthlySalary && (
-                      <p className="text-xs text-gray-500">
-                        Mensal: R$ {employee.monthlySalary.toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="text-sm text-gray-600">
-                    {employee.hoursThisMonth}h
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {employee.phoneWhatsApp ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      <MessageSquare className="w-3 h-3" />
-                      WhatsApp
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                      <Clock className="w-3 h-3" />
-                      Manual
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  {employee.active ? (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <UserCheck className="w-3 h-3" />
-                      Ativo
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      <UserX className="w-3 h-3" />
-                      Inativo
-                    </span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => onEdit(employee)}
-                    className="text-indigo-600 hover:text-indigo-900 mr-3"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button className="text-red-600 hover:text-red-900">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+            {employees.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                  Nenhum funcionário cadastrado
                 </td>
               </tr>
-            ))}
+            ) : (
+              employees.map((employee) => (
+                <tr key={employee.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm font-medium text-gray-900">
+                      {employee.code}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {employee.name}
+                      </div>
+                      {employee.email && (
+                        <div className="text-sm text-gray-500">
+                          {employee.email}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">
+                      {employee.role || 'Funcionário'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">
+                      {employee.contractType === 'clt' ? 'CLT' : 
+                       employee.contractType === 'hourly' ? 'Por Hora' : 
+                       employee.contractType === 'daily' ? 'Diário' : 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <span className="text-sm font-medium text-gray-900">
+                        R$ {employee.hourlyRate.toFixed(2)}
+                      </span>
+                      {employee.contractType === 'clt' && employee.monthlySalary && (
+                        <p className="text-xs text-gray-500">
+                          Mensal: R$ {employee.monthlySalary.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">
+                      {employee.hoursThisMonth}h
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {employee.phoneWhatsApp ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <MessageSquare className="w-3 h-3" />
+                        WhatsApp
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        <Clock className="w-3 h-3" />
+                        Manual
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {employee.active ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <UserCheck className="w-3 h-3" />
+                        Ativo
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        <UserX className="w-3 h-3" />
+                        Inativo
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <button
+                      onClick={() => onEdit(employee)}
+                      className="text-indigo-600 hover:text-indigo-900 mr-3"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => onDelete(employee.id)}
+                      className="text-red-600 hover:text-red-900"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
