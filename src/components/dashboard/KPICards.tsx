@@ -2,9 +2,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { TrendingUp, TrendingDown, DollarSign, Package, Users, ShoppingCart, Loader2 } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Package, Users, ShoppingCart, Loader2, Info } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { api } from '@/services/api'
+import type { EnhancedDailyKPI } from '@/services/api'
 
 interface KPICardsProps {
   date: Date
@@ -12,8 +13,8 @@ interface KPICardsProps {
 }
 
 export default function KPICards({ date, ownerId }: KPICardsProps) {
-  const [todayKPI, setTodayKPI] = useState<any>(null)
-  const [yesterdayKPI, setYesterdayKPI] = useState<any>(null)
+  const [todayKPI, setTodayKPI] = useState<EnhancedDailyKPI | null>(null)
+  const [yesterdayKPI, setYesterdayKPI] = useState<EnhancedDailyKPI | null>(null)
   const [loading, setLoading] = useState(true)
   
   useEffect(() => {
@@ -30,10 +31,10 @@ export default function KPICards({ date, ownerId }: KPICardsProps) {
         yesterday.setDate(yesterday.getDate() - 1)
         const yesterdayStr = yesterday.toISOString().split('T')[0]
         
-        // Fetch both days' KPIs
+        // Fetch both days' KPIs with enhanced data (rolling CMV)
         const [todayData, yesterdayData] = await Promise.all([
-          api.getDailyKPI(ownerId, dateStr),
-          api.getDailyKPI(ownerId, yesterdayStr)
+          api.getDailyKPIEnhanced(ownerId, dateStr),
+          api.getDailyKPIEnhanced(ownerId, yesterdayStr)
         ])
         
         setTodayKPI(todayData)
@@ -55,7 +56,7 @@ export default function KPICards({ date, ownerId }: KPICardsProps) {
   }
   
   const salesTrend = calculateTrend(todayKPI?.sales, yesterdayKPI?.sales)
-  const foodTrend = calculateTrend(todayKPI?.food_cost_percentage, yesterdayKPI?.food_cost_percentage)
+  const foodTrend = calculateTrend(todayKPI?.rolling_cmv_percentage, yesterdayKPI?.rolling_cmv_percentage)
   const labourTrend = calculateTrend(todayKPI?.labor_cost_percentage, yesterdayKPI?.labor_cost_percentage)
   
   const cards = [
@@ -68,14 +69,19 @@ export default function KPICards({ date, ownerId }: KPICardsProps) {
       trendIsGood: salesTrend.isUp
     },
     {
-      title: 'CMV (Food Cost)',
-      value: todayKPI?.food_cost_percentage ? `${todayKPI.food_cost_percentage.toFixed(1)}%` : '0%',
-      subtitle: todayKPI ? `R$ ${todayKPI.food_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'R$ 0,00',
+      title: 'CMV (Média 30d)',
+      value: todayKPI?.rolling_cmv_percentage ? `${todayKPI.rolling_cmv_percentage.toFixed(1)}%` : '0%',
+      subtitle: todayKPI ? (
+        todayKPI.is_purchase_day 
+          ? `📦 Compras: R$ ${todayKPI.actual_purchases?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}`
+          : `Teórico: R$ ${todayKPI.theoretical_food_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ) : 'R$ 0,00',
       trend: foodTrend,
       icon: Package,
-      color: todayKPI?.food_cost_percentage && todayKPI.food_cost_percentage > 35 ? 'red' : 
-             todayKPI?.food_cost_percentage && todayKPI.food_cost_percentage > 30 ? 'yellow' : 'green',
-      trendIsGood: !foodTrend.isUp
+      color: todayKPI?.rolling_cmv_percentage && todayKPI.rolling_cmv_percentage > 35 ? 'red' : 
+             todayKPI?.rolling_cmv_percentage && todayKPI.rolling_cmv_percentage > 30 ? 'yellow' : 'green',
+      trendIsGood: !foodTrend.isUp,
+      isPurchaseDay: todayKPI?.is_purchase_day || false
     },
     {
       title: 'Mão de Obra',

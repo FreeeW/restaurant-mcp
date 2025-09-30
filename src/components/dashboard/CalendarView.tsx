@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { api } from '@/services/api'
+import type { EnhancedDailyKPI } from '@/services/api'
 
 interface CalendarViewProps {
   selectedDate: Date
@@ -16,7 +17,7 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [monthData, setMonthData] = useState<Record<string, any>>({})
+  const [monthData, setMonthData] = useState<Record<string, EnhancedDailyKPI>>({})
   
   const monthNames = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -51,15 +52,15 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
         const year = currentMonth.getFullYear()
         const month = currentMonth.getMonth()
         const daysInMonth = getDaysInMonth(currentMonth)
-        const monthData: Record<string, any> = {}
+        const monthData: Record<string, EnhancedDailyKPI> = {}
         
-        // Fetch data for each day in the month
+        // Fetch data for each day in the month with rolling CMV
         const promises = []
         for (let day = 1; day <= daysInMonth; day++) {
           const date = new Date(year, month, day)
           const dateStr = date.toISOString().split('T')[0]
           promises.push(
-            api.getDailyKPI(ownerId, dateStr).then(kpi => {
+            api.getDailyKPIEnhanced(ownerId, dateStr, 30).then(kpi => {
               if (kpi) monthData[dateStr] = kpi
             })
           )
@@ -85,7 +86,7 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
     
     // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-24"></div>)
+      days.push(<div key={`empty-${i}`} className="h-20"></div>)
     }
     
     // Days of the month
@@ -101,7 +102,7 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
           key={day}
           onClick={() => onDateSelect(date)}
           className={`
-            h-24 p-2 border rounded-lg transition-all
+            h-20 p-1.5 border rounded-lg transition-all relative overflow-hidden
             ${isSelected 
               ? 'border-emerald-500 bg-emerald-50' 
               : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -109,30 +110,57 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
             ${isToday && !isSelected ? 'ring-2 ring-blue-400' : ''}
           `}
         >
-          <div className="text-sm font-medium text-gray-900 mb-1">{day}</div>
-          {kpi && (
-            <div className="space-y-1">
-              <div className="text-xs text-gray-600">
-                R$ {kpi.sales.toLocaleString('pt-BR')}
+          <div className="flex flex-col h-full">
+            {/* Day number */}
+            <div className="text-sm font-semibold text-gray-900">{day}</div>
+            
+            {kpi ? (
+              <div className="flex-1 flex flex-col justify-between mt-1">
+                {/* Sales amount */}
+                <div className="text-xs text-gray-700 font-medium truncate">
+                  {(kpi.sales / 1000).toFixed(1)}k
+                </div>
+                
+                {/* KPI badges - more compact */}
+                <div className="flex gap-0.5">
+                  {/* CMV badge */}
+                  <div className={`flex-1 rounded text-center py-0.5 ${
+                    kpi.rolling_cmv_percentage > 35 ? 'bg-red-100' : 
+                    kpi.rolling_cmv_percentage > 30 ? 'bg-yellow-100' : 
+                    'bg-green-100'
+                  }`}>
+                    <span className={`text-xs font-medium ${
+                      kpi.rolling_cmv_percentage > 35 ? 'text-red-700' : 
+                      kpi.rolling_cmv_percentage > 30 ? 'text-yellow-700' : 
+                      'text-green-700'
+                    }`}>
+                      {kpi.is_purchase_day && <span className="text-xs">📦</span>}
+                      {kpi.rolling_cmv_percentage.toFixed(0)}%
+                    </span>
+                  </div>
+                  
+                  {/* Labor badge */}
+                  <div className={`flex-1 rounded text-center py-0.5 ${
+                    kpi.labor_cost_percentage > 30 ? 'bg-red-100' : 
+                    kpi.labor_cost_percentage > 25 ? 'bg-yellow-100' : 
+                    'bg-green-100'
+                  }`}>
+                    <span className={`text-xs font-medium ${
+                      kpi.labor_cost_percentage > 30 ? 'text-red-700' : 
+                      kpi.labor_cost_percentage > 25 ? 'text-yellow-700' : 
+                      'text-green-700'
+                    }`}>
+                      {kpi.labor_cost_percentage.toFixed(0)}%
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-1">
-                <span className={`text-xs px-1 py-0.5 rounded ${
-                  kpi.food_cost_percentage > 35 ? 'bg-red-100 text-red-700' : 
-                  kpi.food_cost_percentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {kpi.food_cost_percentage.toFixed(1)}%
-                </span>
-                <span className={`text-xs px-1 py-0.5 rounded ${
-                  kpi.labor_cost_percentage > 30 ? 'bg-red-100 text-red-700' : 
-                  kpi.labor_cost_percentage > 25 ? 'bg-yellow-100 text-yellow-700' : 
-                  'bg-green-100 text-green-700'
-                }`}>
-                  {kpi.labor_cost_percentage.toFixed(1)}%
-                </span>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <span className="text-xs text-gray-400">-</span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </button>
       )
     }
@@ -176,13 +204,13 @@ export default function CalendarView({ selectedDate, onDateSelect, ownerId }: Ca
         <div className="flex gap-2">
           <button
             onClick={goToPreviousMonth}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={goToNextMonth}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-700"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

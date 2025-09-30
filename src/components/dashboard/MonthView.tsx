@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, BarChart3, TrendingUp, Package, Users, Loader2 } from 'lucide-react'
 import { Card, CardHeader, CardContent } from '@/components/ui/Card'
 import { api } from '@/services/api'
+import type { EnhancedDailyKPI } from '@/services/api'
 
 interface MonthViewProps {
   selectedDate: Date
@@ -14,7 +15,7 @@ interface MonthViewProps {
 
 export default function MonthView({ selectedDate, onDateSelect, ownerId }: MonthViewProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [monthData, setMonthData] = useState<Record<string, any>>({})
+  const [monthData, setMonthData] = useState<Record<string, EnhancedDailyKPI>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -35,15 +36,15 @@ export default function MonthView({ selectedDate, onDateSelect, ownerId }: Month
         const year = currentMonth.getFullYear()
         const month = currentMonth.getMonth()
         const daysInMonth = new Date(year, month + 1, 0).getDate()
-        const monthData: Record<string, any> = {}
+        const monthData: Record<string, EnhancedDailyKPI> = {}
         
-        // Fetch data for each day in the month
+        // Fetch data for each day in the month with rolling CMV
         const promises = []
         for (let day = 1; day <= daysInMonth; day++) {
           const date = new Date(year, month, day)
           const dateStr = date.toISOString().split('T')[0]
           promises.push(
-            api.getDailyKPI(ownerId, dateStr).then(kpi => {
+            api.getDailyKPIEnhanced(ownerId, dateStr, 30).then(kpi => {
               if (kpi) monthData[dateStr] = kpi
             })
           )
@@ -81,7 +82,7 @@ export default function MonthView({ selectedDate, onDateSelect, ownerId }: Month
       
       if (kpi) {
         totalSales += kpi.sales
-        totalFoodCost += kpi.food_cost
+        totalFoodCost += kpi.theoretical_food_cost || kpi.food_cost
         totalLabourCost += kpi.labor_cost
         daysWithData++
         
@@ -193,19 +194,19 @@ export default function MonthView({ selectedDate, onDateSelect, ownerId }: Month
             <div className="flex gap-2">
               <button
                 onClick={() => changeMonth(-1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={() => setCurrentMonth(new Date())}
-                className="px-3 py-1 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+                className="px-3 py-1 text-sm rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
               >
                 Este Mês
               </button>
               <button
                 onClick={() => changeMonth(1)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { api } from '@/services/api'
+import type { EnhancedDailyKPI } from '@/services/api'
 
 interface WeekViewProps {
   selectedDate: Date
@@ -19,7 +20,7 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
     const diff = date.getDate() - day + (day === 0 ? -6 : 1) // Adjust to Monday
     return new Date(date.setDate(diff))
   })
-  const [weekData, setWeekData] = useState<Record<string, any>>({})
+  const [weekData, setWeekData] = useState<Record<string, EnhancedDailyKPI>>({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
@@ -44,12 +45,12 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
       setError(null)
       
       try {
-        const weekData: Record<string, any> = {}
+        const weekData: Record<string, EnhancedDailyKPI> = {}
         
-        // Fetch data for each day in the week
+        // Fetch data for each day in the week with rolling CMV
         const promises = weekDays.map(date => {
           const dateStr = date.toISOString().split('T')[0]
-          return api.getDailyKPI(ownerId, dateStr).then(kpi => {
+          return api.getDailyKPIEnhanced(ownerId, dateStr, 30).then(kpi => {
             if (kpi) weekData[dateStr] = kpi
           })
         })
@@ -71,6 +72,7 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
     let totalSales = 0
     let totalFoodCost = 0
     let totalLabourCost = 0
+    let totalRollingCMV = 0
     let daysWithData = 0
     
     weekDays.forEach(date => {
@@ -78,8 +80,9 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
       const kpi = weekData[dateStr]
       if (kpi) {
         totalSales += kpi.sales
-        totalFoodCost += kpi.food_cost
+        totalFoodCost += kpi.theoretical_food_cost || kpi.food_cost
         totalLabourCost += kpi.labor_cost
+        totalRollingCMV += kpi.rolling_cmv_percentage
         daysWithData++
       }
     })
@@ -88,7 +91,7 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
       totalSales,
       totalFoodCost,
       totalLabourCost,
-      avgFoodPercent: daysWithData > 0 ? Math.round((totalFoodCost / totalSales) * 100) : 0,
+      avgFoodPercent: daysWithData > 0 ? Math.round(totalRollingCMV / daysWithData) : 0,
       avgLabourPercent: daysWithData > 0 ? Math.round((totalLabourCost / totalSales) * 100) : 0,
       daysWithData
     }
@@ -152,19 +155,19 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
           <div className="flex gap-2">
             <button
               onClick={() => changeWeek(-1)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={() => setCurrentWeek(new Date())}
-              className="px-3 py-1 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+              className="px-3 py-1 text-sm rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
             >
               Esta Semana
             </button>
             <button
               onClick={() => changeWeek(1)}
-              className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-700"
             >
               <ChevronRight className="w-5 h-5" />
             </button>
@@ -219,11 +222,12 @@ export default function WeekView({ selectedDate, onDateSelect, ownerId }: WeekVi
                     </p>
                     <div className="flex justify-center gap-1 mt-1">
                       <span className={`text-xs px-1 py-0.5 rounded ${
-                        kpi.food_cost_percentage > 35 ? 'bg-red-100 text-red-700' : 
-                        kpi.food_cost_percentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
+                        kpi.rolling_cmv_percentage > 35 ? 'bg-red-100 text-red-700' : 
+                        kpi.rolling_cmv_percentage > 30 ? 'bg-yellow-100 text-yellow-700' : 
                         'bg-green-100 text-green-700'
                       }`}>
-                        {kpi.food_cost_percentage.toFixed(1)}%
+                        {kpi.is_purchase_day && '📦'}
+                        {kpi.rolling_cmv_percentage.toFixed(1)}%
                       </span>
                     </div>
                   </>

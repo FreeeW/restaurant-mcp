@@ -6,7 +6,7 @@ import { X, Phone, MessageSquare, DollarSign } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
-import { Employee } from '@/lib/mock-data'
+import type { Employee } from '@/services/api'
 
 interface EmployeeFormProps {
   employee?: Employee | null
@@ -19,12 +19,12 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
     code: employee?.code || '',
     name: employee?.name || '',
     role: employee?.role || '',
-    hourlyRate: employee?.hourlyRate || 0,
+    hourly_rate: employee?.hourly_rate || 0,
     phone: employee?.phone || '',
-    phoneWhatsApp: employee?.phoneWhatsApp || '',
+    phone_e164: employee?.phone_e164 || '',
     email: employee?.email || '',
-    contractType: employee?.contractType || 'hourly' as 'hourly' | 'clt' | 'daily',
-    monthlySalary: employee?.monthlySalary || 0,
+    contract_type: employee?.contract_type || 'hourly' as 'hourly' | 'clt' | 'daily',
+    monthly_salary: employee?.monthly_salary || 0,
     active: employee?.active ?? true
   })
   
@@ -41,7 +41,7 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
   
   const handleWhatsAppChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatWhatsApp(e.target.value)
-    setFormData({ ...formData, phoneWhatsApp: formatted })
+    setFormData({ ...formData, phone_e164: formatted })
   }
   
   const handleSubmit = (e: React.FormEvent) => {
@@ -83,8 +83,8 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
                 Tipo de Contrato
               </label>
               <select
-                value={formData.contractType}
-                onChange={(e) => setFormData({ ...formData, contractType: e.target.value as any })}
+                value={formData.contract_type}
+                onChange={(e) => setFormData({ ...formData, contract_type: e.target.value as 'hourly' | 'clt' | 'daily' })}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
                 <option value="hourly">Horista</option>
@@ -103,14 +103,14 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
               <Input
                 type="number"
                 step="0.01"
-                value={formData.hourlyRate}
-                onChange={(e) => setFormData({ ...formData, hourlyRate: parseFloat(e.target.value) })}
+                value={formData.hourly_rate}
+                onChange={(e) => setFormData({ ...formData, hourly_rate: parseFloat(e.target.value) })}
                 placeholder="15.50"
                 required
               />
             </div>
             
-            {formData.contractType === 'clt' && (
+            {formData.contract_type === 'clt' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   <DollarSign className="w-3 h-3 inline mr-1" />
@@ -119,8 +119,8 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
                 <Input
                   type="number"
                   step="0.01"
-                  value={formData.monthlySalary}
-                  onChange={(e) => setFormData({ ...formData, monthlySalary: parseFloat(e.target.value) })}
+                  value={formData.monthly_salary}
+                  onChange={(e) => setFormData({ ...formData, monthly_salary: parseFloat(e.target.value) })}
                   placeholder="3000.00"
                 />
               </div>
@@ -168,7 +168,7 @@ export default function EmployeeForm({ employee, onClose, onSave }: EmployeeForm
               WhatsApp (para registro de ponto)
             </label>
             <Input
-              value={formData.phoneWhatsApp}
+              value={formData.phone_e164}
               onChange={handleWhatsAppChange}
               placeholder="5511999999999"
             />

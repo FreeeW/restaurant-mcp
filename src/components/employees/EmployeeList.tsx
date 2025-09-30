@@ -3,7 +3,7 @@
 
 import { Edit, Trash2, UserCheck, UserX, MessageSquare, Clock } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
-import { Employee } from '@/lib/mock-data'
+import type { Employee } from '@/services/api'
 
 interface EmployeeListProps {
   employees: Employee[]
@@ -81,30 +81,30 @@ export default function EmployeeList({ employees, onEdit, onDelete }: EmployeeLi
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-900">
-                      {employee.contractType === 'clt' ? 'CLT' : 
-                       employee.contractType === 'hourly' ? 'Por Hora' : 
-                       employee.contractType === 'daily' ? 'Diário' : 'N/A'}
+                      {employee.contract_type === 'clt' ? 'CLT' : 
+                       employee.contract_type === 'hourly' ? 'Por Hora' : 
+                       employee.contract_type === 'daily' ? 'Diário' : 'N/A'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <span className="text-sm font-medium text-gray-900">
-                        R$ {employee.hourlyRate.toFixed(2)}
+                        R$ {(employee.hourly_rate || 0).toFixed(2)}
                       </span>
-                      {employee.contractType === 'clt' && employee.monthlySalary && (
+                      {employee.contract_type === 'clt' && employee.monthly_salary && (
                         <p className="text-xs text-gray-500">
-                          Mensal: R$ {employee.monthlySalary.toFixed(2)}
+                          Mensal: R$ {employee.monthly_salary.toFixed(2)}
                         </p>
                       )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm text-gray-600">
-                      {employee.hoursThisMonth}h
+                      {employee.hours_this_month || 0}h
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {employee.phoneWhatsApp ? (
+                    {employee.phone_e164 ? (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         <MessageSquare className="w-3 h-3" />
                         WhatsApp
