@@ -543,7 +543,7 @@ export const api = {
     // Enhance with employee names from employees table
     if (data && data.length > 0) {
       // Get all unique employee codes
-      const employeeCodes = [...new Set(data.map(d => d.employee_code))]
+      const employeeCodes = Array.from(new Set(data.map(d => d.employee_code)))
       
       // Fetch employee details
       const { data: employees } = await supabase
