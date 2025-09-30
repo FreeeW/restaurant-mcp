@@ -97,7 +97,7 @@ export default function SummaryCards({ summary, loading }: SummaryCardsProps) {
             `}
           >
             <div className="flex items-start justify-between mb-4">
-              <div className={`p-2 rounded-lg ${colorClasses[card.color]}`}>
+              <div className={`p-2 rounded-lg ${colorClasses[card.color as keyof typeof colorClasses]}`}>
                 <Icon className="w-5 h-5" />
               </div>
               {card.important && (

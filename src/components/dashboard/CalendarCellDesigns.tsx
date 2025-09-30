@@ -1,6 +1,8 @@
 // Alternative compact calendar cell design using icons
 // This can replace the current design if you prefer even more compact cells
 
+import type { EnhancedDailyKPI } from '@/services/api'
+
 const renderCompactCalendarCell = (day: number, kpi: EnhancedDailyKPI | undefined, isSelected: boolean, isToday: boolean, onDateSelect: () => void) => {
   return (
     <button

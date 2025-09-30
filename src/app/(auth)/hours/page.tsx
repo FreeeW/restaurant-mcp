@@ -28,11 +28,16 @@ export default function HoursPage() {
   const [error, setError] = useState<string | null>(null)
   
   // Filter state
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    startDate: string
+    endDate: string
+    periodType: 'day' | 'week' | 'month' | 'custom'
+    employeeCodes?: string[]
+  }>({
     startDate: '',
     endDate: '',
-    periodType: 'week' as 'day' | 'week' | 'month' | 'custom',
-    employeeCodes: undefined as string[] | undefined
+    periodType: 'week',
+    employeeCodes: undefined
   })
 
   // Load employees on mount
@@ -100,7 +105,12 @@ export default function HoursPage() {
     }
   }
 
-  const handleFiltersChange = (newFilters: typeof filters) => {
+  const handleFiltersChange = (newFilters: {
+    startDate: string
+    endDate: string
+    periodType: 'day' | 'week' | 'month' | 'custom'
+    employeeCodes?: string[]
+  }) => {
     setFilters(newFilters)
   }
 
@@ -195,11 +205,11 @@ export default function HoursPage() {
                   }, {} as Record<string, number>)
                   
                   const topEmployee = Object.entries(employeeHours)
-                    .sort(([,a], [,b]) => b - a)[0]
+                    .sort(([,a], [,b]) => (b as number) - (a as number))[0]
                   
                   if (topEmployee) {
                     const employee = laborData.find(r => r.employee_code === topEmployee[0])
-                    return `${employee?.employee_name} (${topEmployee[1].toFixed(1)}h)`
+                    return `${employee?.employee_name} (${(topEmployee[1] as number).toFixed(1)}h)`
                   }
                   return 'N/A'
                 })()}
@@ -217,12 +227,12 @@ export default function HoursPage() {
                   }, {} as Record<string, number>)
                   
                   const topDay = Object.entries(dailyCosts)
-                    .sort(([,a], [,b]) => b - a)[0]
+                    .sort(([,a], [,b]) => (b as number) - (a as number))[0]
                   
                   if (topDay) {
                     const formattedDate = new Date(topDay[0] + 'T12:00:00')
                       .toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
-                    return `${formattedDate} (${topDay[1].toLocaleString('pt-BR', {
+                    return `${formattedDate} (${(topDay[1] as number).toLocaleString('pt-BR', {
                       style: 'currency',
                       currency: 'BRL'
                     })})`
